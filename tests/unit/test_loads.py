@@ -17,6 +17,7 @@ from openstruct.domain.loads import (
     LoadCase,
     LoadCombination,
     NodalLoad,
+    PointLoad,
     self_weight_loads,
 )
 from openstruct.domain.material import Material
@@ -313,6 +314,193 @@ def test_distributed_load_apply_to_axis_aligned_element_scatters_correctly() -> 
     f_global = np.zeros(12)
     load.apply_to(f_global, element, dof_index)
     assert np.allclose(f_global, load.fixed_end_forces_local(element))
+
+
+# -- PointLoad ---------------------------------------------------------------
+
+
+def test_point_load_stores_fields() -> None:
+    load = PointLoad(1, position=1500.0, fx=1.0, fy=-2.0, fz=3.0)
+    assert (load.element_id, load.position, load.fx, load.fy, load.fz) == (
+        1, 1500.0, 1.0, -2.0, 3.0,
+    )
+
+
+def test_point_load_is_an_element_load() -> None:
+    assert isinstance(PointLoad(1, position=0.0, fy=1.0), ElementLoad)
+    assert not isinstance(PointLoad(1, position=0.0, fy=1.0), Load)
+
+
+def test_point_load_rejects_negative_element_id() -> None:
+    with pytest.raises(ValueError):
+        PointLoad(-1, position=0.0, fy=1.0)
+
+
+def test_point_load_rejects_non_int_element_id() -> None:
+    with pytest.raises(TypeError):
+        PointLoad(1.5, position=0.0, fy=1.0)  # type: ignore[arg-type]
+
+
+def test_point_load_rejects_negative_position() -> None:
+    with pytest.raises(ValueError):
+        PointLoad(1, position=-1.0, fy=1.0)
+
+
+def test_point_load_accepts_position_within_negative_floating_point_tolerance() -> None:
+    """Lado NEGATIVO da tolerancia de ponto flutuante (simetrico ao teste
+    de tolerancia positiva abaixo) — ver ``_POSITION_NEGATIVE_TOLERANCE``.
+    Antes da correcao (CODE REVIEW AGENT, achado da fase PointLoad), este
+    caso era rejeitado incondicionalmente em ``__post_init__``, mesmo
+    sendo um erro de arredondamento identico em magnitude ao ja aceito
+    do lado ``position > length``."""
+    load = PointLoad(1, position=-1e-9, fy=5.0)
+    element = _axis_aligned_element(length=4000.0)
+    fef = load.fixed_end_forces_local(element)
+    assert np.all(np.isfinite(fef))
+
+
+def test_point_load_rejects_non_finite_position() -> None:
+    with pytest.raises(ValueError):
+        PointLoad(1, position=math.nan, fy=1.0)
+
+
+@pytest.mark.parametrize("field", ["fx", "fy", "fz"])
+def test_point_load_rejects_non_finite_components(field: str) -> None:
+    with pytest.raises(ValueError):
+        PointLoad(1, position=0.0, **{field: math.nan})
+
+
+def test_point_load_fixed_end_forces_rejects_wrong_element() -> None:
+    load = PointLoad(1, position=1000.0, fy=5.0)
+    other_element = _axis_aligned_element(element_id=2)
+    with pytest.raises(ValueError):
+        load.fixed_end_forces_local(other_element)
+
+
+def test_point_load_fixed_end_forces_rejects_non_element3d() -> None:
+    load = PointLoad(1, position=0.0, fy=5.0)
+    n1 = Node(1, 0.0, 0.0, 0.0)
+    n2 = Node(2, 1000.0, 0.0, 0.0)
+    other = _NonFrame3DElement(1, (n1, n2), STEEL, SECTION)
+    with pytest.raises(TypeError):
+        load.fixed_end_forces_local(other)
+
+
+def test_point_load_fixed_end_forces_rejects_position_outside_span() -> None:
+    element = _axis_aligned_element(length=4000.0)
+    with pytest.raises(ValueError):
+        PointLoad(1, position=4001.0, fy=5.0).fixed_end_forces_local(element)
+
+
+def test_point_load_fixed_end_forces_accepts_position_within_floating_point_tolerance() -> None:
+    """Uma posicao *ligeiramente* fora do vao por erro de arredondamento
+    (nao um erro de modelagem real) nao deve ser rejeitada — ver
+    tolerancia ``1e-9 * length`` na docstring/implementacao."""
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    fef = PointLoad(1, position=length + 1e-10, fy=5.0).fixed_end_forces_local(element)
+    assert np.all(np.isfinite(fef))
+
+
+def test_point_load_fixed_end_forces_axial() -> None:
+    """Funcoes de forma lineares: f_i = P*b/L, f_j = P*a/L."""
+    length = 4000.0
+    a = 1500.0
+    b = length - a
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=a, fx=10.0)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[0] = 10.0 * b / length
+    expected[6] = 10.0 * a / length
+    assert np.allclose(fef, expected)
+
+
+def test_point_load_fixed_end_forces_bending_y_direction() -> None:
+    """Par UY/RZ: f = [Pb^2(3a+b)/L^3, Pab^2/L^2, Pa^2(3b+a)/L^3, -Pa^2b/L^2]
+    (ver docstring de PointLoad, verificado simbolicamente contra as
+    funcoes de forma de Hermite)."""
+    length = 4000.0
+    a = 1500.0
+    b = length - a
+    p = 7.0
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=a, fy=p)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[1] = p * b**2 * (3 * a + b) / length**3
+    expected[5] = p * a * b**2 / length**2
+    expected[7] = p * a**2 * (3 * b + a) / length**3
+    expected[11] = -p * a**2 * b / length**2
+    assert np.allclose(fef, expected)
+
+
+def test_point_load_fixed_end_forces_bending_z_direction_has_flipped_moment_sign() -> None:
+    """Par UZ/RY: sinal do termo de momento invertido, mesma convencao de
+    ``DistributedLoad``."""
+    length = 4000.0
+    a = 1500.0
+    b = length - a
+    p = 7.0
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=a, fz=p)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[2] = p * b**2 * (3 * a + b) / length**3
+    expected[4] = -p * a * b**2 / length**2
+    expected[8] = p * a**2 * (3 * b + a) / length**3
+    expected[10] = p * a**2 * b / length**2
+    assert np.allclose(fef, expected)
+
+
+def test_point_load_at_start_node_reduces_to_nodal_load_at_node_i() -> None:
+    """Caso limite a=0 (b=L): o vetor de carga consistente deve colapsar
+    para uma forca inteira no no ``i`` (mesmo efeito de uma NodalLoad),
+    sem nenhum termo de momento espurio."""
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=0.0, fy=9.0, fz=-4.0)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[1] = 9.0
+    expected[2] = -4.0
+    assert np.allclose(fef, expected)
+
+
+def test_point_load_at_end_node_reduces_to_nodal_load_at_node_j() -> None:
+    """Caso limite a=L (b=0): colapsa para uma forca inteira no no ``j``."""
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=length, fy=9.0, fz=-4.0)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[7] = 9.0
+    expected[8] = -4.0
+    assert np.allclose(fef, expected)
+
+
+def test_point_load_apply_to_axis_aligned_element_scatters_correctly() -> None:
+    # Elemento alinhado com X -> transformation_matrix() == identidade
+    # (ver VAL-0001), entao equivalente global == equivalente local.
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    load = PointLoad(1, position=1000.0, fy=5.0)
+
+    def dof_index(node_id: int, dof: DOF) -> int:
+        base = 0 if node_id == 1 else 6
+        return base + dof.value
+
+    f_global = np.zeros(12)
+    load.apply_to(f_global, element, dof_index)
+    assert np.allclose(f_global, load.fixed_end_forces_local(element))
+
+
+def test_load_case_apply_to_with_point_load_scatters_via_transformation() -> None:
+    element = _axis_aligned_element()
+    case = LoadCase("X", element_loads=(PointLoad(1, position=1000.0, fy=5.0),))
+    f = np.zeros(12)
+    case.apply_to(f, _dof_index_2_nodes, elements={1: element})
+    assert np.allclose(f, PointLoad(1, position=1000.0, fy=5.0).fixed_end_forces_local(element))
 
 
 # -- LoadCase.element_loads -------------------------------------------------

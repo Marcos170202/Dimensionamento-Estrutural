@@ -20,6 +20,7 @@ from .loads import (
     LoadCase,
     LoadCombination,
     NodalLoad,
+    PointLoad,
     self_weight_loads,
 )
 from .material import Material
@@ -43,6 +44,7 @@ __all__ = [
     "Material",
     "Node",
     "NodalLoad",
+    "PointLoad",
     "Section",
     "Support",
     "self_weight_loads",

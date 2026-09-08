@@ -1,15 +1,16 @@
 """Cargas: ``Load``/``ElementLoad`` (base), ``NodalLoad``, ``DistributedLoad``,
-``LoadCase``, ``LoadCombination``, ``self_weight_loads``.
+``PointLoad``, ``LoadCase``, ``LoadCombination``, ``self_weight_loads``.
 
 Fonte: PROGRAM_MASTER.md secao 3 ("CORE ESTRUTURAL") e secao 10
 ("LOADS"): "Implementar: nodal loads, point loads, distributed loads,
 self weight."
 
 Escopo desta fase: cargas nodais (``NodalLoad``), cargas uniformemente
-distribuidas ao longo do vao de um ``Element3D`` (``DistributedLoad``)
-e peso proprio automatico (``self_weight_loads``, calculado de
-material/secao de cada elemento). Carga concentrada NO MEIO DO VAO
-(nao nos nos) fica para uma fase seguinte.
+distribuidas ao longo do vao de um ``Element3D`` (``DistributedLoad``),
+carga concentrada em posicao arbitraria do vao (``PointLoad``) e peso
+proprio automatico (``self_weight_loads``, calculado de material/secao
+de cada elemento). Momento concentrado fora dos nos (nao apenas forca)
+fica para uma fase seguinte — ver docstring de ``PointLoad``.
 
 Convencao de unidades: ver ``material.py``/``section.py`` (N, mm, MPa)
 — forcas em N, momentos em N.mm, cargas distribuidas em N/mm.
@@ -154,6 +155,30 @@ class ElementLoad(ABC):
         f_global[indices] += equivalent_global
 
 
+def _resolve_element3d(element: Element, element_id: int, load_class_name: str) -> Element3D:
+    """Valida que ``element`` corresponde a ``element_id`` e e um ``Element3D``
+    (unico tipo de elemento suportado por qualquer ``ElementLoad`` nesta
+    fase) — checagem compartilhada por ``DistributedLoad`` e ``PointLoad``
+    para nao duplicar a mesma logica/mensagem em cada subclasse (CODE
+    REVIEW AGENT, achado da fase PointLoad).
+
+    Devolve o proprio ``element`` re-tipado como ``Element3D`` (o
+    ``isinstance`` funciona como "type narrowing" tanto para mypy quanto
+    em runtime, entao o chamador pode usar ``element.length`` sem cast).
+    """
+    if element.id != element_id:
+        raise ValueError(
+            f"{load_class_name}.element_id={element_id!r} nao corresponde "
+            f"ao elemento fornecido (id={element.id!r})."
+        )
+    if not isinstance(element, Element3D):
+        raise TypeError(
+            f"{load_class_name} so suporta Element3D nesta fase, recebido "
+            f"{type(element).__name__}."
+        )
+    return element
+
+
 @dataclass(frozen=True, slots=True)
 class DistributedLoad(ElementLoad):
     """Carga uniformemente distribuida ao longo do vao de um ``Element3D``.
@@ -219,16 +244,7 @@ class DistributedLoad(ElementLoad):
                 )
 
     def fixed_end_forces_local(self, element: Element) -> np.ndarray:
-        if element.id != self.element_id:
-            raise ValueError(
-                f"DistributedLoad.element_id={self.element_id!r} nao corresponde "
-                f"ao elemento fornecido (id={element.id!r})."
-            )
-        if not isinstance(element, Element3D):
-            raise TypeError(
-                f"DistributedLoad so suporta Element3D nesta fase, recebido "
-                f"{type(element).__name__}."
-            )
+        element = _resolve_element3d(element, self.element_id, "DistributedLoad")
 
         length = element.length
         length_sq = length * length
@@ -249,6 +265,145 @@ class DistributedLoad(ElementLoad):
         fef[4] += -self.wz * length_sq / 12.0
         fef[8] += self.wz * length / 2.0
         fef[10] += self.wz * length_sq / 12.0
+
+        return fef
+
+
+#: Tolerancia ABSOLUTA (mm) usada apenas em ``PointLoad.__post_init__``
+#: para aceitar um ``position`` ligeiramente negativo por arredondamento
+#: de ponto flutuante (ex.: ``-1e-13`` vindo de um calculo que deveria
+#: dar exatamente ``0.0``), sem rejeitar erros de modelagem reais. Nao
+#: pode ser relativa ao comprimento do elemento aqui porque o elemento
+#: (e portanto seu comprimento) ainda nao e conhecido neste ponto — a
+#: checagem definitiva, com tolerancia RELATIVA ao comprimento real,
+#: acontece em ``fixed_end_forces_local``. Ver CODE REVIEW AGENT
+#: (achado da fase PointLoad): a versao anterior rejeitava qualquer
+#: position negativo aqui incondicionalmente, tornando o lado negativo
+#: daquela tolerancia relativa morto/inalcancavel.
+_POSITION_NEGATIVE_TOLERANCE = 1e-6
+
+
+@dataclass(frozen=True, slots=True)
+class PointLoad(ElementLoad):
+    """Forca concentrada em posicao ARBITRARIA ao longo do vao de um ``Element3D``.
+
+    Diferenca para ``NodalLoad``: ``NodalLoad`` so aplica forca/momento
+    exatamente em um no; ``PointLoad`` aplica em qualquer ponto entre
+    os dois nos (ex.: reacao de uma terca no meio do vao de uma viga
+    principal). Diferenca para ``DistributedLoad``: aqui a carga e uma
+    forca PONTUAL (N), nao uma intensidade por comprimento (N/mm).
+
+    Atributos
+    ---------
+    element_id:
+        Id do elemento onde a carga atua.
+    position:
+        Distancia (mm) do no ``i`` (primeiro no do elemento) ate o
+        ponto de aplicacao, ``0 <= position <= comprimento do elemento``
+        (com uma pequena tolerancia de ponto flutuante em ambos os
+        lados — ver ``_POSITION_NEGATIVE_TOLERANCE`` e a checagem em
+        ``fixed_end_forces_local``).
+    fx, fy, fz:
+        Componentes da forca (N) nas direcoes LOCAIS x, y, z do
+        elemento. **Nao suporta momento concentrado fora dos nos**
+        nesta fase (a formula de carga consistente para um binario
+        aplicado no meio do vao usa a DERIVADA das funcoes de forma,
+        nao o valor delas — uma derivacao adicional deixada para uma
+        fase futura; um momento concentrado NUM NO continua coberto
+        por ``NodalLoad``).
+
+    Derivacao (vetor de carga consistente / "fixed-end forces")
+    --------------------------------------------------------------
+    Para uma carga PONTUAL (delta de Dirac) em ``x=a`` (``b = L-a``),
+    o vetor de carga consistente e simplesmente as funcoes de forma de
+    Hermite avaliadas em ``a`` (a integral de qualquer funcao contra um
+    delta de Dirac e a propria funcao no ponto): ``f_i = N_i(a) * P``.
+    Para o par UY/RZ (``dv/dx=+theta_z``, mesma convencao de
+    ``DistributedLoad``):
+
+        f = [P*b^2*(3a+b)/L^3, P*a*b^2/L^2, P*a^2*(3b+a)/L^3, -P*a^2*b/L^2]
+
+    resultado padrao de qualquer livro-texto de elementos finitos ou
+    de analise matricial de estruturas (mesmas referencias de
+    ``DistributedLoad``) — verificado simbolicamente contra as funcoes
+    de forma cubicas de Hermite antes de implementar, e numericamente
+    em VAL-0005 (casos limite ``a->0``/``a->L`` reduzem exatamente a
+    uma ``NodalLoad``; balanco com carga em posicao interior comparado
+    contra estatica pura e formula fechada de deflexao). Para o par
+    UZ/RY, mesmo sinal invertido de ``DistributedLoad``
+    (``dw/dx=-theta_y``).
+    """
+
+    element_id: int
+    position: float
+    fx: float = 0.0
+    fy: float = 0.0
+    fz: float = 0.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.element_id, int) or isinstance(self.element_id, bool):
+            raise TypeError(
+                f"PointLoad.element_id deve ser int, recebido "
+                f"{type(self.element_id).__name__}."
+            )
+        if self.element_id < 0:
+            raise ValueError(
+                f"PointLoad.element_id deve ser nao-negativo, recebido {self.element_id!r}."
+            )
+        if not math.isfinite(self.position) or self.position < -_POSITION_NEGATIVE_TOLERANCE:
+            raise ValueError(
+                f"PointLoad.position deve ser finito e nao-negativo, "
+                f"recebido {self.position!r}."
+            )
+        for name in ("fx", "fy", "fz"):
+            value = getattr(self, name)
+            if not math.isfinite(value):
+                raise ValueError(f"PointLoad.{name} deve ser finito, recebido {value!r}.")
+
+    def fixed_end_forces_local(self, element: Element) -> np.ndarray:
+        element = _resolve_element3d(element, self.element_id, "PointLoad")
+
+        length = element.length
+        # tolerancia relativa para absorver arredondamento de ponto
+        # flutuante quando position e passado como (praticamente) 0 ou
+        # comprimento — nao para mascarar um erro de modelagem real.
+        # Simetrica: o lado negativo ja foi pre-filtrado (com uma
+        # tolerancia absoluta, ja que o comprimento do elemento ainda
+        # nao e conhecido em __post_init__) por
+        # _POSITION_NEGATIVE_TOLERANCE, entao esta checagem e o unico
+        # lugar onde AMBOS os lados sao validados com a tolerancia
+        # relativa correta (CODE REVIEW AGENT: achado da fase PointLoad
+        # — a versao anterior rejeitava incondicionalmente qualquer
+        # position<0 em __post_init__, tornando o lado negativo desta
+        # tolerancia relativa morto/inalcancavel).
+        tolerance = 1e-9 * length
+        if not (-tolerance <= self.position <= length + tolerance):
+            raise ValueError(
+                f"PointLoad.position={self.position!r} esta fora do vao do "
+                f"elemento id={element.id!r} (comprimento {length!r})."
+            )
+        a = min(max(self.position, 0.0), length)
+        b = length - a
+        length_sq = length * length
+        length_cb = length_sq * length
+
+        fef = np.zeros(12)
+
+        # axial (funcoes de forma lineares, sem ambiguidade de sinal)
+        fef[0] += self.fx * b / length
+        fef[6] += self.fx * a / length
+
+        # flexao em torno de z (par UY/RZ, dv/dx=+theta_z, ver frame3d.py)
+        fef[1] += self.fy * b * b * (3 * a + b) / length_cb
+        fef[5] += self.fy * a * b * b / length_sq
+        fef[7] += self.fy * a * a * (3 * b + a) / length_cb
+        fef[11] += -self.fy * a * a * b / length_sq
+
+        # flexao em torno de y (par UZ/RY, dw/dx=-theta_y -> sinal invertido)
+        fef[2] += self.fz * b * b * (3 * a + b) / length_cb
+        fef[4] += -self.fz * a * b * b / length_sq
+        fef[8] += self.fz * a * a * (3 * b + a) / length_cb
+        fef[10] += self.fz * a * a * b / length_sq
 
         return fef
 
