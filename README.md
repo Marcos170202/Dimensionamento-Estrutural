@@ -27,6 +27,18 @@ completa do programa) para o escopo integral do projeto.
   longo do vao de um `Element3D` (vetor de carga nodal equivalente por
   trabalho virtual, validado contra viga em balanco e simplesmente
   apoiada em VAL-0003);
+- `self_weight_loads` — gera automaticamente uma `DistributedLoad` de
+  peso proprio por elemento (`density x A x gravity`, projetada nos
+  eixos locais; validado em VAL-0004 contra estatica pura e formula
+  fechada, incluindo elemento vertical, horizontal e inclinado);
+- `PointLoad` — forca concentrada em posicao ARBITRARIA ao longo do
+  vao de um `Element3D` (nao apenas nos nos, diferenca para
+  `NodalLoad`), com vetor de carga nodal equivalente por trabalho
+  virtual (funcoes de forma de Hermite avaliadas no ponto de
+  aplicacao); validado em VAL-0005 contra estatica pura, formula
+  fechada de deflexao e os casos limite (`position=0`/`=comprimento`
+  reduzem exatamente a uma `NodalLoad`). **Nao suporta momento
+  concentrado fora dos nos** nesta fase;
 - `AnalysisModel` — container de nos/elementos/apoios com numeracao
   global de DOFs;
 - `Assembly` — monta `K_global`/`F_global`;
@@ -39,10 +51,9 @@ completa do programa) para o escopo integral do projeto.
   seguranca de equilibrio (`EquilibriumResidualError`) contra
   resultados fisicamente inconsistentes.
 
-**Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER): carga
-concentrada fora dos nos, peso proprio automatico, GUI (PySide6), IA,
-P-Delta, flambagem, modulos normativos (incluindo NBR 8800) e
-dimensionamento.
+**Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER):
+momento concentrado fora dos nos, GUI (PySide6), IA, P-Delta,
+flambagem, modulos normativos (incluindo NBR 8800) e dimensionamento.
 
 ## Convenção de unidades
 
@@ -114,7 +125,8 @@ src/openstruct/
 │   ├── material.py              # Material
 │   ├── section.py               # Section
 │   ├── support.py               # Support
-│   ├── loads.py                  # Load (ABC), NodalLoad, LoadCase, LoadCombination
+│   ├── loads.py                  # Load/ElementLoad (ABC), NodalLoad, DistributedLoad,
+│   │                                PointLoad, LoadCase, LoadCombination, self_weight_loads
 │   ├── model.py                  # AnalysisModel
 │   └── elements/
 │       ├── base.py                # Element (ABC)
