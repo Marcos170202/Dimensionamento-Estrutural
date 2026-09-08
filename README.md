@@ -5,9 +5,9 @@ estruturas metalicas em 3D. Ver `AGENTS_MASTER.md` (sistema
 multiagente de desenvolvimento) e `PROGRAM_MASTER.md` (especificacao
 completa do programa) para o escopo integral do projeto.
 
-## Estado atual: FOUNDATION + CORE STRUCTURAL MODEL
+## Estado atual: SOLVER V1 ("3D FRAME SOLVER V1")
 
-Esta fase implementa **apenas** o modelo de dominio estrutural:
+### Fase FOUNDATION + CORE STRUCTURAL MODEL (modelo de dominio)
 
 - `DOF` — os 6 graus de liberdade nodais (UX, UY, UZ, RX, RY, RZ);
 - `Node` — no estrutural (id, coordenadas, DOFs);
@@ -18,9 +18,29 @@ Esta fase implementa **apenas** o modelo de dominio estrutural:
   Y, flexao Z, torcao), com `local_stiffness_matrix()`,
   `transformation_matrix()` e `global_stiffness_matrix()`.
 
-**Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER):
-Support, Load, LoadCase, LoadCombination, AnalysisModel, Assembly,
-boundary conditions, solver global, resultados, GUI (PySide6), IA,
+### Fase SOLVER V1 (montagem, apoios, cargas, resolucao)
+
+- `Support` — restricao de DOF em um no (com presets `fixed`/`pinned`);
+- `Load`/`NodalLoad`/`LoadCase`/`LoadCombination` — cargas nodais e
+  sua combinacao linear;
+- `ElementLoad`/`DistributedLoad` — carga uniformemente distribuida ao
+  longo do vao de um `Element3D` (vetor de carga nodal equivalente por
+  trabalho virtual, validado contra viga em balanco e simplesmente
+  apoiada em VAL-0003);
+- `AnalysisModel` — container de nos/elementos/apoios com numeracao
+  global de DOFs;
+- `Assembly` — monta `K_global`/`F_global`;
+- `BoundaryConditions` — particiona livre/restrito e detecta
+  mecanismo (`ModelInstabilityError`);
+- `solve_linear_system` — resolve `K u = F` (SciPy, arquitetura
+  trocavel para LU/Cholesky/LDLT/esparso);
+- `run_analysis`/`AnalysisResult` — orquestra tudo acima e devolve
+  deslocamentos, reacoes e esforcos internos, com uma rede de
+  seguranca de equilibrio (`EquilibriumResidualError`) contra
+  resultados fisicamente inconsistentes.
+
+**Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER): carga
+concentrada fora dos nos, peso proprio automatico, GUI (PySide6), IA,
 P-Delta, flambagem, modulos normativos (incluindo NBR 8800) e
 dimensionamento.
 
@@ -44,6 +64,36 @@ uv venv --python 3.13 .venv
 uv pip install -e ".[dev]" --python .venv/bin/python
 ```
 
+## Exemplo de uso
+
+```python
+from openstruct.domain import (
+    AnalysisModel, Node, Material, Section, Element3D, Support,
+    LoadCase, NodalLoad,
+)
+from openstruct import run_analysis
+
+steel = Material(name="ASTM A572 Gr. 50", E=200000.0, G=77000.0,
+                  density=7.85e-6, fy=345.0, fu=450.0, poisson=0.3)
+section = Section(name="W310x21", A=2680.0, Iy=3.79e6, Iz=37.0e6,
+                   J=52.8e3, Wply=306e3, Wplz=254e3, Wely=272e3, Welz=239e3)
+
+model = AnalysisModel()
+n1 = Node(1, 0.0, 0.0, 0.0)
+n2 = Node(2, 4000.0, 0.0, 0.0)
+model.add_node(n1)
+model.add_node(n2)
+model.add_element(Element3D(1, (n1, n2), steel, section))
+model.add_support(Support.fixed(1))  # cantilever engastado no no 1
+
+load = LoadCase("P", (NodalLoad(2, fy=-10_000.0),))  # 10 kN na ponta
+result = run_analysis(model, load)
+
+print(result.displacements[2])   # [ux, uy, uz, rx, ry, rz] do no 2
+print(result.reactions[1])       # reacao de apoio no no 1
+print(result.element_forces[1])  # esforcos internos do elemento 1 (eixos locais)
+```
+
 ## Testes
 
 ```bash
@@ -57,19 +107,29 @@ uv pip install -e ".[dev]" --python .venv/bin/python
 
 ```
 src/openstruct/
-├── __init__.py
-└── domain/
-    ├── dof.py              # DOF (enum), DOFS_PER_NODE, NODE_DOF_ORDER
-    ├── node.py              # Node
-    ├── material.py          # Material
-    ├── section.py           # Section
-    └── elements/
-        ├── base.py           # Element (ABC)
-        └── frame3d.py        # Element3D
+├── __init__.py               # re-exporta AnalysisResult, run_analysis
+├── domain/                    # DOMAIN + CORE (dados, sem calculo de matrizes)
+│   ├── dof.py                  # DOF (enum), DOFS_PER_NODE, NODE_DOF_ORDER
+│   ├── node.py                  # Node
+│   ├── material.py              # Material
+│   ├── section.py               # Section
+│   ├── support.py               # Support
+│   ├── loads.py                  # Load (ABC), NodalLoad, LoadCase, LoadCombination
+│   ├── model.py                  # AnalysisModel
+│   └── elements/
+│       ├── base.py                # Element (ABC)
+│       └── frame3d.py             # Element3D
+├── analysis/                  # ANALYSIS (deriva matrizes/vetores do modelo)
+│   ├── assembly.py              # Assembly (K_global, F_global)
+│   └── boundary_conditions.py    # BoundaryConditions, ModelInstabilityError
+├── solver/                    # SOLVER (algebra linear pura)
+│   └── linear.py                # solve_linear_system
+└── results/                   # RESULTS (orquestracao + saida)
+    └── analysis_result.py       # AnalysisResult, run_analysis, EquilibriumResidualError
 
 tests/
 ├── unit/                    # testes unitarios por classe
-└── validation/               # comparacao contra solucoes analiticas
+└── validation/               # comparacao contra solucoes analiticas/estatica pura
 
 docs/
 ├── validation/               # VAL-XXXX.md — registros de validacao de engenharia

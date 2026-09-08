@@ -30,10 +30,9 @@ consolidado desta validacao esta em
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import numpy as np
 import pytest
+from validation_record import ValidationRecord
 
 from openstruct.domain.elements.frame3d import Element3D
 from openstruct.domain.material import Material
@@ -66,28 +65,11 @@ SECTION = Section(
 #: e a solucao EXATA da equacao diferencial (nao ha erro de
 #: discretizacao a reduzir) — a tolerancia aqui existe apenas para
 #: absorver erro de arredondamento de ponto flutuante, por isso e
-#: extremamente apertada.
+#: extremamente apertada. ``ValidationRecord`` em si e compartilhado
+#: por todos os testes de ``tests/validation/`` (ver
+#: ``validation_record.py``) — CODE REVIEW AGENT apontou a duplicacao
+#: anterior entre este arquivo e VAL-0002.
 RELATIVE_TOLERANCE = 1.0e-9
-
-
-@dataclass(frozen=True)
-class ValidationRecord:
-    """Um registro PROBLEMA/REFERENCIA/RESULTADO exigido por AGENTS_MASTER."""
-
-    problema: str
-    referencia: float
-    resultado: float
-    tolerancia: float = RELATIVE_TOLERANCE
-
-    @property
-    def erro_relativo(self) -> float:
-        if self.referencia == 0.0:
-            return abs(self.resultado)
-        return abs(self.resultado - self.referencia) / abs(self.referencia)
-
-    @property
-    def status(self) -> str:
-        return "APROVADO" if self.erro_relativo <= self.tolerancia else "REPROVADO"
 
 
 def _cantilever_free_end_displacement(
@@ -126,6 +108,7 @@ def test_val0001_axial_elongation(axis_aligned_cantilever: tuple[Element3D, floa
         problema="Barra em balanco, carga axial P na extremidade livre",
         referencia=reference,
         resultado=u[0],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     assert record.status == "APROVADO", record
 
@@ -140,6 +123,7 @@ def test_val0001_torsional_twist(axis_aligned_cantilever: tuple[Element3D, float
         problema="Barra em balanco, torque T na extremidade livre",
         referencia=reference,
         resultado=u[3],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     assert record.status == "APROVADO", record
 
@@ -159,11 +143,13 @@ def test_val0001_bending_about_z_deflection_and_slope(
         problema="Balanco, carga transversal P (plano x-y) — flecha v na ponta",
         referencia=v_ref,
         resultado=u[1],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     rz_record = ValidationRecord(
         problema="Balanco, carga transversal P (plano x-y) — rotacao rz na ponta",
         referencia=rz_ref,
         resultado=u[5],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     assert v_record.status == "APROVADO", v_record
     assert rz_record.status == "APROVADO", rz_record
@@ -184,11 +170,13 @@ def test_val0001_bending_about_y_deflection_and_slope(
         problema="Balanco, carga transversal P (plano x-z) — flecha w na ponta",
         referencia=w_ref,
         resultado=u[2],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     ry_record = ValidationRecord(
         problema="Balanco, carga transversal P (plano x-z) — rotacao ry na ponta",
         referencia=ry_ref,
         resultado=u[4],
+        tolerancia=RELATIVE_TOLERANCE,
     )
     assert w_record.status == "APROVADO", w_record
     assert ry_record.status == "APROVADO", ry_record
