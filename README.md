@@ -23,6 +23,10 @@ completa do programa) para o escopo integral do projeto.
 - `Support` — restricao de DOF em um no (com presets `fixed`/`pinned`);
 - `Load`/`NodalLoad`/`LoadCase`/`LoadCombination` — cargas nodais e
   sua combinacao linear;
+- `ElementLoad`/`DistributedLoad` — carga uniformemente distribuida ao
+  longo do vao de um `Element3D` (vetor de carga nodal equivalente por
+  trabalho virtual, validado contra viga em balanco e simplesmente
+  apoiada em VAL-0003);
 - `AnalysisModel` — container de nos/elementos/apoios com numeracao
   global de DOFs;
 - `Assembly` — monta `K_global`/`F_global`;
@@ -36,8 +40,8 @@ completa do programa) para o escopo integral do projeto.
   resultados fisicamente inconsistentes.
 
 **Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER): carga
-distribuida/peso proprio (so cargas nodais existem), GUI (PySide6),
-IA, P-Delta, flambagem, modulos normativos (incluindo NBR 8800) e
+concentrada fora dos nos, peso proprio automatico, GUI (PySide6), IA,
+P-Delta, flambagem, modulos normativos (incluindo NBR 8800) e
 dimensionamento.
 
 ## Convenção de unidades

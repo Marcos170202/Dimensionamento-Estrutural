@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+from ..dof import NODE_DOF_ORDER, DofIndexer
 from ..material import Material
 from ..node import Node
 from ..section import Section
@@ -132,3 +133,19 @@ class Element(ABC):
     def __repr__(self) -> str:
         node_ids = tuple(n.id for n in self._nodes)
         return f"{type(self).__name__}(id={self._id!r}, nodes={node_ids!r})"
+
+
+def element_dof_indices(element: Element, dof_index: DofIndexer) -> list[int]:
+    """Indices globais dos DOFs de ``element``, na mesma ordem de ``element.nodes``.
+
+    Funcao livre (nao metodo) porque e usada tanto por
+    ``analysis.Assembly`` quanto por ``domain.loads.ElementLoad`` — a
+    camada ``domain`` nao pode depender de ``analysis`` (ver ADR-002),
+    entao esta unica implementacao mora aqui e ambas as camadas a
+    importam, em vez de cada uma reimplementar o mesmo loop (CODE
+    REVIEW AGENT: duplicacao encontrada entre ``Assembly.element_dof_indices``
+    e ``ElementLoad.apply_to`` na fase de carga distribuida).
+    """
+    return [
+        dof_index(node.id, dof) for node in element.nodes for dof in NODE_DOF_ORDER
+    ]

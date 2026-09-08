@@ -105,8 +105,11 @@ def run_analysis(
        em DOFs LIVRES e numericamente nulo) e CONFERE que o residuo e
        de fato numericamente nulo antes de devolver qualquer resultado
        — ver :class:`EquilibriumResidualError`.
-    6. Extrai esforcos internos de cada elemento a partir de seu
-       proprio ``local_stiffness_matrix()``/``transformation_matrix()``.
+    6. Extrai esforcos internos de cada elemento:
+       ``k_local @ u_local - fixed_end_forces_local_for(element)``. O
+       termo subtraido e zero quando so ha cargas nodais (``NodalLoad``)
+       — so entra em jogo com ``ElementLoad`` (ex.: ``DistributedLoad``),
+       ver VAL-0003 para a derivacao e validacao do sinal.
     """
     assembly = Assembly(model)
     k_global = assembly.global_stiffness_matrix()
@@ -150,7 +153,10 @@ def run_analysis(
         idx = assembly.element_dof_indices(element)
         u_element_global = u_global[idx]
         u_element_local = element.transformation_matrix() @ u_element_global
-        element_forces[element_id] = element.local_stiffness_matrix() @ u_element_local
+        fixed_end_forces = load_source.fixed_end_forces_local_for(element)
+        element_forces[element_id] = (
+            element.local_stiffness_matrix() @ u_element_local - fixed_end_forces
+        )
 
     return AnalysisResult(
         displacements=displacements,

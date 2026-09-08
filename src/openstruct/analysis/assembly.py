@@ -15,8 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..domain.dof import NODE_DOF_ORDER
-from ..domain.elements.base import Element
+from ..domain.elements.base import Element, element_dof_indices
 from ..domain.loads import LoadSource
 from ..domain.model import AnalysisModel
 
@@ -37,22 +36,24 @@ class Assembly:
         return k_global
 
     def global_load_vector(self, load_source: LoadSource) -> np.ndarray:
-        """``F_global``, array ``(model.num_dofs,)``, a partir de um LoadCase/LoadCombination."""
+        """``F_global``, array ``(model.num_dofs,)``, a partir de um LoadCase/LoadCombination.
+
+        Passa ``model.elements`` para que ``ElementLoad`` (ex.:
+        ``DistributedLoad``) consiga resolver seu ``element_id`` em um
+        ``Element`` de verdade — ``NodalLoad`` simplesmente ignora
+        esse mapeamento.
+        """
         f_global = np.zeros(self.model.num_dofs)
-        load_source.apply_to(f_global, self.model.dof_index)
+        load_source.apply_to(f_global, self.model.dof_index, self.model.elements)
         return f_global
 
     def element_dof_indices(self, element: Element) -> list[int]:
         """Indices globais dos DOFs do elemento, na mesma ordem de ``element.nodes``.
 
-        Generico para qualquer ``Element`` (nao apenas ``Element3D``):
-        cada no contribui com seus 6 DOFs na ordem canonica
-        (``NODE_DOF_ORDER``), na ordem em que os nos aparecem em
-        ``element.nodes`` — que e exatamente a ordem assumida por
-        ``element.local_stiffness_matrix()``/``transformation_matrix()``.
+        Generico para qualquer ``Element`` (nao apenas ``Element3D``) —
+        delega a ``domain.elements.base.element_dof_indices`` (a mesma
+        funcao usada por ``domain.loads.ElementLoad.apply_to``, ver
+        ADR-002: ``analysis`` pode depender de ``domain``, nunca o
+        contrario).
         """
-        return [
-            self.model.dof_index(node.id, dof)
-            for node in element.nodes
-            for dof in NODE_DOF_ORDER
-        ]
+        return element_dof_indices(element, self.model.dof_index)

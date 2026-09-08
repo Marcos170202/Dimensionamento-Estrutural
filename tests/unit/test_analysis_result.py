@@ -15,7 +15,7 @@ import pytest
 
 from openstruct.analysis.boundary_conditions import ModelInstabilityError
 from openstruct.domain.elements.frame3d import Element3D
-from openstruct.domain.loads import LoadCase, NodalLoad
+from openstruct.domain.loads import DistributedLoad, LoadCase, NodalLoad
 from openstruct.domain.material import Material
 from openstruct.domain.model import AnalysisModel
 from openstruct.domain.node import Node
@@ -136,6 +136,23 @@ def test_run_analysis_raises_equilibrium_residual_error_on_broken_solve(
     load = LoadCase("P", (NodalLoad(2, fy=-10000.0),))
     with pytest.raises(EquilibriumResidualError):
         run_analysis(model, load)
+
+
+def test_run_analysis_with_distributed_load_subtracts_fixed_end_forces() -> None:
+    """element_forces = k_local@u_local - fixed_end_forces_local_for(element).
+
+    Sem essa subtracao, o no LIVRE (sem carga nodal direta, so a
+    distribuida) nao teria esforco interno ~0 — o que ele DEVE ter,
+    ja que nao ha nada mais conectado la (mesma logica de VAL-0002
+    Caso 5, agora para carga distribuida). Ver VAL-0003 para a
+    validacao completa (estatica pura + formulas fechadas).
+    """
+    model = _cantilever()
+    load = LoadCase("UDL", element_loads=(DistributedLoad(1, wy=5.0),))
+    result = run_analysis(model, load)
+
+    # no 2 (ponta livre): sem carga nodal direta -> esforco interno ~0
+    assert np.allclose(result.element_forces[1][6:], 0.0, atol=1e-6)
 
 
 def test_run_analysis_with_empty_load_case_gives_zero_displacement() -> None:

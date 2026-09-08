@@ -8,13 +8,55 @@ import numpy as np
 import pytest
 
 from openstruct.domain.dof import DOF
-from openstruct.domain.loads import Load, LoadCase, LoadCombination, NodalLoad
+from openstruct.domain.elements.base import Element
+from openstruct.domain.elements.frame3d import Element3D
+from openstruct.domain.loads import (
+    DistributedLoad,
+    ElementLoad,
+    Load,
+    LoadCase,
+    LoadCombination,
+    NodalLoad,
+)
+from openstruct.domain.material import Material
+from openstruct.domain.node import Node
+from openstruct.domain.section import Section
+
+STEEL = Material(
+    name="Steel", E=200000.0, G=77000.0, density=7.85e-6, fy=345.0, fu=450.0, poisson=0.3
+)
+SECTION = Section(
+    name="Sec1", A=2680.0, Iy=3.79e6, Iz=37.0e6, J=52.8e3,
+    Wply=306e3, Wplz=254e3, Wely=272e3, Welz=239e3,
+)
+
+
+class _NonFrame3DElement(Element):
+    """Elemento minimo, NAO Element3D — so para testar a rejeicao de
+    ``DistributedLoad.fixed_end_forces_local`` a tipos nao suportados
+    nesta fase (ver docstring de ``DistributedLoad``)."""
+
+    @property
+    def num_dofs(self) -> int:
+        return 2
+
+    def local_stiffness_matrix(self) -> np.ndarray:
+        return np.eye(2)
+
+    def transformation_matrix(self) -> np.ndarray:
+        return np.eye(2)
 
 
 def _dof_index_2_nodes(node_id: int, dof: DOF) -> int:
     """Indexador de DOF simples para testes: no 1 -> [0..5], no 2 -> [6..11]."""
     base = 0 if node_id == 1 else 6
     return base + dof.value
+
+
+def _axis_aligned_element(element_id: int = 1, length: float = 4000.0) -> Element3D:
+    n1 = Node(1, 0.0, 0.0, 0.0)
+    n2 = Node(2, length, 0.0, 0.0)
+    return Element3D(element_id, (n1, n2), STEEL, SECTION)
 
 
 # -- NodalLoad ---------------------------------------------------------------
@@ -168,3 +210,160 @@ def test_load_combination_dimensions_are_immutable() -> None:
     combo = LoadCombination("C", {case: 1.0})
     with pytest.raises(TypeError):
         combo.factors[case] = 5.0  # type: ignore[index]
+
+
+# -- DistributedLoad -------------------------------------------------------
+
+
+def test_distributed_load_stores_fields() -> None:
+    load = DistributedLoad(1, wx=1.0, wy=-2.0, wz=3.0)
+    assert (load.element_id, load.wx, load.wy, load.wz) == (1, 1.0, -2.0, 3.0)
+
+
+def test_distributed_load_is_an_element_load() -> None:
+    assert isinstance(DistributedLoad(1, wy=1.0), ElementLoad)
+    assert not isinstance(DistributedLoad(1, wy=1.0), Load)
+
+
+def test_distributed_load_rejects_negative_element_id() -> None:
+    with pytest.raises(ValueError):
+        DistributedLoad(-1, wy=1.0)
+
+
+def test_distributed_load_rejects_non_int_element_id() -> None:
+    with pytest.raises(TypeError):
+        DistributedLoad(1.5, wy=1.0)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("field", ["wx", "wy", "wz"])
+def test_distributed_load_rejects_non_finite_components(field: str) -> None:
+    with pytest.raises(ValueError):
+        DistributedLoad(1, **{field: math.nan})
+
+
+def test_distributed_load_fixed_end_forces_rejects_wrong_element() -> None:
+    load = DistributedLoad(1, wy=5.0)
+    other_element = _axis_aligned_element(element_id=2)
+    with pytest.raises(ValueError):
+        load.fixed_end_forces_local(other_element)
+
+
+def test_distributed_load_fixed_end_forces_rejects_non_element3d() -> None:
+    load = DistributedLoad(1, wy=5.0)
+    n1 = Node(1, 0.0, 0.0, 0.0)
+    n2 = Node(2, 1000.0, 0.0, 0.0)
+    other = _NonFrame3DElement(1, (n1, n2), STEEL, SECTION)
+    with pytest.raises(TypeError):
+        load.fixed_end_forces_local(other)
+
+
+def test_distributed_load_fixed_end_forces_axial() -> None:
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    load = DistributedLoad(1, wx=2.0)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[0] = expected[6] = 2.0 * length / 2.0
+    assert np.allclose(fef, expected)
+
+
+def test_distributed_load_fixed_end_forces_bending_y_direction() -> None:
+    """Par UY/RZ: f = [wL/2, wL^2/12, wL/2, -wL^2/12] (ver docstring de DistributedLoad)."""
+    length = 4000.0
+    w = 5.0
+    element = _axis_aligned_element(length=length)
+    load = DistributedLoad(1, wy=w)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[1] = w * length / 2.0
+    expected[5] = w * length**2 / 12.0
+    expected[7] = w * length / 2.0
+    expected[11] = -(w * length**2 / 12.0)
+    assert np.allclose(fef, expected)
+
+
+def test_distributed_load_fixed_end_forces_bending_z_direction_has_flipped_moment_sign() -> None:
+    """Par UZ/RY: sinal do termo de momento invertido em relacao ao par UY/RZ."""
+    length = 4000.0
+    w = 5.0
+    element = _axis_aligned_element(length=length)
+    load = DistributedLoad(1, wz=w)
+    fef = load.fixed_end_forces_local(element)
+    expected = np.zeros(12)
+    expected[2] = w * length / 2.0
+    expected[4] = -(w * length**2 / 12.0)
+    expected[8] = w * length / 2.0
+    expected[10] = w * length**2 / 12.0
+    assert np.allclose(fef, expected)
+
+
+def test_distributed_load_apply_to_axis_aligned_element_scatters_correctly() -> None:
+    # Elemento alinhado com X -> transformation_matrix() == identidade
+    # (ver VAL-0001), entao equivalente global == equivalente local.
+    length = 4000.0
+    element = _axis_aligned_element(length=length)
+    load = DistributedLoad(1, wy=5.0)
+
+    def dof_index(node_id: int, dof: DOF) -> int:
+        base = 0 if node_id == 1 else 6
+        return base + dof.value
+
+    f_global = np.zeros(12)
+    load.apply_to(f_global, element, dof_index)
+    assert np.allclose(f_global, load.fixed_end_forces_local(element))
+
+
+# -- LoadCase.element_loads -------------------------------------------------
+
+
+def test_load_case_stores_element_loads() -> None:
+    dload = DistributedLoad(1, wy=5.0)
+    case = LoadCase("Permanente", element_loads=(dload,))
+    assert case.element_loads == (dload,)
+
+
+def test_load_case_rejects_non_element_load_items() -> None:
+    with pytest.raises(TypeError):
+        LoadCase("X", element_loads=("not-an-element-load",))  # type: ignore[arg-type]
+
+
+def test_load_case_apply_to_requires_elements_mapping_for_element_loads() -> None:
+    case = LoadCase("X", element_loads=(DistributedLoad(1, wy=5.0),))
+    f = np.zeros(12)
+    with pytest.raises(KeyError):
+        case.apply_to(f, _dof_index_2_nodes)  # sem `elements` -> mapeamento vazio
+
+
+def test_load_case_apply_to_with_element_loads_scatters_via_transformation() -> None:
+    element = _axis_aligned_element()
+    case = LoadCase("X", element_loads=(DistributedLoad(1, wy=5.0),))
+    f = np.zeros(12)
+    case.apply_to(f, _dof_index_2_nodes, elements={1: element})
+    assert np.allclose(f, DistributedLoad(1, wy=5.0).fixed_end_forces_local(element))
+
+
+def test_load_case_fixed_end_forces_local_for_sums_matching_element_loads() -> None:
+    element = _axis_aligned_element(element_id=1)
+    other_element = _axis_aligned_element(element_id=2)
+    case = LoadCase(
+        "X",
+        element_loads=(DistributedLoad(1, wy=5.0), DistributedLoad(2, wy=99.0)),
+    )
+    fef = case.fixed_end_forces_local_for(element)
+    assert np.allclose(fef, DistributedLoad(1, wy=5.0).fixed_end_forces_local(element))
+    # a carga do OUTRO elemento nao deve contaminar este resultado
+    assert not np.allclose(fef, DistributedLoad(2, wy=99.0).fixed_end_forces_local(other_element))
+
+
+def test_load_case_fixed_end_forces_local_for_is_zero_without_element_loads() -> None:
+    element = _axis_aligned_element()
+    case = LoadCase("X", (NodalLoad(1, fx=10.0),))
+    assert np.array_equal(case.fixed_end_forces_local_for(element), np.zeros(12))
+
+
+def test_load_combination_fixed_end_forces_local_for_scales_by_factor() -> None:
+    element = _axis_aligned_element()
+    case = LoadCase("X", element_loads=(DistributedLoad(1, wy=5.0),))
+    combo = LoadCombination("C", {case: 2.0})
+    expected = 2.0 * case.fixed_end_forces_local_for(element)
+    assert np.allclose(combo.fixed_end_forces_local_for(element), expected)

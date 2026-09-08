@@ -14,6 +14,7 @@ neste projeto (ex.: os 12 DOFs de ``Element3D`` sao
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import IntEnum, unique
 
 
@@ -63,3 +64,11 @@ NODE_DOF_ORDER: tuple[DOF, ...] = (
     DOF.RY,
     DOF.RZ,
 )
+
+#: Assinatura da funcao de indexacao de DOF global, tipicamente
+#: ``AnalysisModel.dof_index`` — mapeia (id do no, DOF) para o indice
+#: da linha/coluna correspondente em um vetor/matriz global. Definido
+#: aqui (modulo sem nenhuma dependencia interna) para poder ser usado
+#: tanto por ``domain.elements`` quanto por ``domain.loads`` sem
+#: risco de import circular.
+DofIndexer = Callable[[int, DOF], int]

@@ -6,7 +6,7 @@ import numpy as np
 
 from openstruct.analysis.assembly import Assembly
 from openstruct.domain.elements.frame3d import Element3D
-from openstruct.domain.loads import LoadCase, NodalLoad
+from openstruct.domain.loads import DistributedLoad, LoadCase, NodalLoad
 from openstruct.domain.material import Material
 from openstruct.domain.model import AnalysisModel
 from openstruct.domain.node import Node
@@ -101,3 +101,12 @@ def test_global_load_vector_has_correct_length() -> None:
     f_global = Assembly(model).global_load_vector(LoadCase("Vazio"))
     assert f_global.shape == (12,)
     assert np.array_equal(f_global, np.zeros(12))
+
+
+def test_global_load_vector_resolves_element_load_via_model_elements() -> None:
+    # Assembly passa model.elements para que DistributedLoad (que so
+    # guarda um element_id) consiga encontrar o Element3D de verdade.
+    model, element = _single_element_model()
+    case = LoadCase("UDL", element_loads=(DistributedLoad(1, wy=5.0),))
+    f_global = Assembly(model).global_load_vector(case)
+    assert np.allclose(f_global, DistributedLoad(1, wy=5.0).fixed_end_forces_local(element))
