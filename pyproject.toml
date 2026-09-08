@@ -1,7 +1,7 @@
 [project]
 name = "openstruct3d"
-version = "0.1.0"
-description = "OpenStruct 3D — nucleo de analise estrutural 3D (fase FOUNDATION + CORE STRUCTURAL MODEL)"
+version = "0.2.0"
+description = "OpenStruct 3D — nucleo de analise estrutural 3D (fase SOLVER V1)"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
@@ -16,6 +16,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.10",
+    "scipy-stubs>=1.11",
 ]
 
 [build-system]
