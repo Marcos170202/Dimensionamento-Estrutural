@@ -1,14 +1,15 @@
 """Cargas: ``Load``/``ElementLoad`` (base), ``NodalLoad``, ``DistributedLoad``,
-``LoadCase``, ``LoadCombination``.
+``LoadCase``, ``LoadCombination``, ``self_weight_loads``.
 
 Fonte: PROGRAM_MASTER.md secao 3 ("CORE ESTRUTURAL") e secao 10
 ("LOADS"): "Implementar: nodal loads, point loads, distributed loads,
 self weight."
 
-Escopo desta fase: cargas nodais (``NodalLoad``) e cargas uniformemente
-distribuidas ao longo do vao de um ``Element3D`` (``DistributedLoad``).
-Carga concentrada NO MEIO DO VAO (nao nos nos) e peso proprio
-automatico (calculado de material/secao) ficam para uma fase seguinte.
+Escopo desta fase: cargas nodais (``NodalLoad``), cargas uniformemente
+distribuidas ao longo do vao de um ``Element3D`` (``DistributedLoad``)
+e peso proprio automatico (``self_weight_loads``, calculado de
+material/secao de cada elemento). Carga concentrada NO MEIO DO VAO
+(nao nos nos) fica para uma fase seguinte.
 
 Convencao de unidades: ver ``material.py``/``section.py`` (N, mm, MPa)
 — forcas em N, momentos em N.mm, cargas distribuidas em N/mm.
@@ -28,6 +29,7 @@ import numpy as np
 from .dof import NODE_DOF_ORDER, DofIndexer
 from .elements.base import Element, element_dof_indices
 from .elements.frame3d import Element3D
+from .model import AnalysisModel
 
 
 class Load(ABC):
@@ -404,3 +406,110 @@ class LoadCombination:
         for case, factor in self.factors.items():
             total += factor * case.fixed_end_forces_local_for(element)
         return total
+
+
+#: Aceleracao da gravidade padrao — em METROS por segundo ao quadrado
+#: (``9.81``), NAO milimetros (``9810``), apesar de todo o resto deste
+#: projeto usar mm — ver docstring de ``self_weight_loads`` para a
+#: justificativa dimensional completa.
+DEFAULT_GRAVITY = 9.81
+
+#: Direcao padrao da gravidade: eixo global Z negativo (convencao
+#: "Z para cima", ja usada em todos os exemplos deste projeto — ver
+#: VAL-0002/VAL-0003, onde colunas sobem em +Z). Para um modelo que
+#: usa outro eixo como vertical, passe ``direction`` explicitamente.
+DEFAULT_GRAVITY_DIRECTION = (0.0, 0.0, -1.0)
+
+
+def self_weight_loads(
+    model: AnalysisModel,
+    gravity: float = DEFAULT_GRAVITY,
+    direction: tuple[float, float, float] = DEFAULT_GRAVITY_DIRECTION,
+) -> tuple[DistributedLoad, ...]:
+    """Gera uma ``DistributedLoad`` de peso proprio para cada elemento do modelo.
+
+    Nao e uma classe de carga nova — e uma FABRICA que calcula, para
+    cada ``Element3D`` do modelo, a intensidade da carga distribuida
+    devida ao proprio peso (``material.density * section.A *
+    gravity``, projetada nos eixos LOCAIS do elemento) e devolve uma
+    ``DistributedLoad`` pronta para entrar em
+    ``LoadCase.element_loads`` — exatamente como se cada uma tivesse
+    sido escrita a mao.
+
+    Convencao de unidades (ATENCAO — a armadilha classica de peso
+    proprio em sistemas mm)
+    ------------------------------------------------------------------
+    Este projeto usa N, mm, MPa (ver ``material.py``), com
+    ``Material.density`` em **kg/mm^3**. Para o peso por unidade de
+    comprimento sair diretamente em N/mm (sem nenhum fator de
+    conversao extra), ``gravity`` precisa estar em **METROS por
+    segundo ao quadrado** (``9.81``), NAO em mm/s^2 (``9810``):
+
+        kg/mm^3 (density) * mm^2 (A) = kg/mm (massa por comprimento)
+        kg/mm (massa/comp.) * m/s^2 (gravity) = (kg*m/s^2)/mm = N/mm
+
+    porque ``N = kg*m/s^2`` por definicao (SI) — o "m" de "m/s^2" e o
+    mesmo "m" que aparece em N, entao ele cancela corretamente contra
+    o "kg" sem precisar converter para mm. Se ``gravity=9810`` fosse
+    usado aqui, o resultado sairia 1000x maior que o correto. Este
+    calculo foi validado numericamente (perfil ~21 kg/m -> peso
+    ~206 N/m) em VAL-0004.
+
+    Parametros
+    ----------
+    model:
+        Modelo cujos elementos receberao peso proprio. Todos os
+        elementos devem ser ``Element3D`` (unico tipo suportado nesta
+        fase, mesma limitacao de ``DistributedLoad``).
+    gravity:
+        Aceleracao da gravidade, em m/s^2 (padrao ``9.81``). Deve ser
+        positiva — o SENTIDO da gravidade e definido por
+        ``direction``, nao pelo sinal de ``gravity``.
+    direction:
+        Vetor (nao precisa ser unitario) na direcao em que a
+        gravidade atua, em coordenadas GLOBAIS. Padrao ``(0,0,-1)``
+        (eixo Z global aponta "para cima", convencao usada em todo
+        este projeto — ver VAL-0002/VAL-0003).
+
+    Retorna
+    -------
+    Uma ``DistributedLoad`` por elemento do modelo, na ordem de
+    ``model.elements``. Lista vazia se o modelo nao tiver elementos.
+    """
+    if not math.isfinite(gravity) or gravity <= 0:
+        raise ValueError(
+            f"self_weight_loads: gravity deve ser positivo e finito, "
+            f"recebido {gravity!r} (o sentido da gravidade e definido "
+            "por 'direction', nao pelo sinal de 'gravity')."
+        )
+
+    direction_vector = np.asarray(direction, dtype=float)
+    if direction_vector.shape != (3,) or not np.all(np.isfinite(direction_vector)):
+        raise ValueError(
+            f"self_weight_loads: direction deve ser um vetor 3D finito, "
+            f"recebido {direction!r}."
+        )
+    norm = np.linalg.norm(direction_vector)
+    if norm < 1e-12:
+        raise ValueError("self_weight_loads: direction nao pode ser o vetor nulo.")
+    direction_unit = direction_vector / norm
+
+    loads: list[DistributedLoad] = []
+    for element in model.elements.values():
+        if not isinstance(element, Element3D):
+            raise TypeError(
+                f"self_weight_loads so suporta Element3D nesta fase, "
+                f"elemento id={element.id!r} e {type(element).__name__}."
+            )
+        weight_per_length = element.material.density * element.section.A * gravity
+        force_global = weight_per_length * direction_unit
+        local_x, local_y, local_z = element.local_axes()
+        loads.append(
+            DistributedLoad(
+                element.id,
+                wx=float(np.dot(force_global, local_x)),
+                wy=float(np.dot(force_global, local_y)),
+                wz=float(np.dot(force_global, local_z)),
+            )
+        )
+    return tuple(loads)

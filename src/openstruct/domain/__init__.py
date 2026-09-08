@@ -13,7 +13,15 @@ elementos (:mod:`.elements`). Fase SOLVER V1 acrescenta:
 from .dof import DOF, DOFS_PER_NODE, NODE_DOF_ORDER
 from .elements.base import Element
 from .elements.frame3d import Element3D
-from .loads import DistributedLoad, ElementLoad, Load, LoadCase, LoadCombination, NodalLoad
+from .loads import (
+    DistributedLoad,
+    ElementLoad,
+    Load,
+    LoadCase,
+    LoadCombination,
+    NodalLoad,
+    self_weight_loads,
+)
 from .material import Material
 from .model import AnalysisModel
 from .node import Node
@@ -37,4 +45,5 @@ __all__ = [
     "NodalLoad",
     "Section",
     "Support",
+    "self_weight_loads",
 ]

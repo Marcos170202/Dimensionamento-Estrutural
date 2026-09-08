@@ -27,6 +27,10 @@ completa do programa) para o escopo integral do projeto.
   longo do vao de um `Element3D` (vetor de carga nodal equivalente por
   trabalho virtual, validado contra viga em balanco e simplesmente
   apoiada em VAL-0003);
+- `self_weight_loads` — gera automaticamente uma `DistributedLoad` de
+  peso proprio por elemento (`density x A x gravity`, projetada nos
+  eixos locais; validado em VAL-0004 contra estatica pura e formula
+  fechada, incluindo elemento vertical, horizontal e inclinado);
 - `AnalysisModel` — container de nos/elementos/apoios com numeracao
   global de DOFs;
 - `Assembly` — monta `K_global`/`F_global`;
@@ -40,9 +44,8 @@ completa do programa) para o escopo integral do projeto.
   resultados fisicamente inconsistentes.
 
 **Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER): carga
-concentrada fora dos nos, peso proprio automatico, GUI (PySide6), IA,
-P-Delta, flambagem, modulos normativos (incluindo NBR 8800) e
-dimensionamento.
+concentrada fora dos nos, GUI (PySide6), IA, P-Delta, flambagem,
+modulos normativos (incluindo NBR 8800) e dimensionamento.
 
 ## Convenção de unidades
 

@@ -17,8 +17,10 @@ from openstruct.domain.loads import (
     LoadCase,
     LoadCombination,
     NodalLoad,
+    self_weight_loads,
 )
 from openstruct.domain.material import Material
+from openstruct.domain.model import AnalysisModel
 from openstruct.domain.node import Node
 from openstruct.domain.section import Section
 
@@ -367,3 +369,128 @@ def test_load_combination_fixed_end_forces_local_for_scales_by_factor() -> None:
     combo = LoadCombination("C", {case: 2.0})
     expected = 2.0 * case.fixed_end_forces_local_for(element)
     assert np.allclose(combo.fixed_end_forces_local_for(element), expected)
+
+
+# -- self_weight_loads -----------------------------------------------------
+
+
+def _model_with_single_element(n1: Node, n2: Node) -> AnalysisModel:
+    model = AnalysisModel()
+    model.add_node(n1)
+    model.add_node(n2)
+    model.add_element(Element3D(1, (n1, n2), STEEL, SECTION))
+    return model
+
+
+def test_self_weight_loads_empty_model_returns_empty_tuple() -> None:
+    assert self_weight_loads(AnalysisModel()) == ()
+
+
+def test_self_weight_loads_one_per_element() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    loads = self_weight_loads(model)
+    assert len(loads) == 1
+    assert all(isinstance(load, DistributedLoad) for load in loads)
+    assert loads[0].element_id == 1
+
+
+def test_self_weight_loads_horizontal_beam_is_purely_transverse() -> None:
+    """Viga horizontal (eixo local x = eixo global X): peso proprio vira
+    carga transversal pura no eixo local z (gravidade = -Z global)."""
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    load = self_weight_loads(model)[0]
+    expected_w = -(STEEL.density * SECTION.A * 9.81)
+    assert load.wx == pytest.approx(0.0, abs=1e-15)
+    assert load.wy == pytest.approx(0.0, abs=1e-15)
+    assert load.wz == pytest.approx(expected_w)
+
+
+def test_self_weight_loads_vertical_column_is_purely_axial() -> None:
+    """Coluna vertical (eixo local x paralelo a gravidade): peso vira
+    carga axial pura (compressao), sem componente de flexao."""
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 4000.0), Node(2, 0.0, 0.0, 0.0))
+    load = self_weight_loads(model)[0]
+    # local_x aponta para -Z (mesmo sentido da gravidade)
+    expected_w = STEEL.density * SECTION.A * 9.81
+    assert load.wx == pytest.approx(expected_w)
+    assert load.wy == pytest.approx(0.0, abs=1e-15)
+    assert load.wz == pytest.approx(0.0, abs=1e-15)
+
+
+def test_self_weight_loads_magnitude_independent_of_orientation() -> None:
+    """A intensidade RESULTANTE (norma do vetor local) nao deve depender
+    da orientacao do elemento — so a distribuicao entre wx/wy/wz muda."""
+    horizontal = self_weight_loads(
+        _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    )[0]
+    vertical = self_weight_loads(
+        _model_with_single_element(Node(1, 0.0, 0.0, 4000.0), Node(2, 0.0, 0.0, 0.0))
+    )[0]
+    inclined = self_weight_loads(
+        _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 3000.0, 0.0, 4000.0))
+    )[0]
+    for load in (horizontal, vertical, inclined):
+        norm = math.sqrt(load.wx**2 + load.wy**2 + load.wz**2)
+        assert norm == pytest.approx(STEEL.density * SECTION.A * 9.81)
+
+
+def test_self_weight_loads_rejects_non_positive_gravity() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    with pytest.raises(ValueError):
+        self_weight_loads(model, gravity=0.0)
+    with pytest.raises(ValueError):
+        self_weight_loads(model, gravity=-9.81)
+
+
+def test_self_weight_loads_rejects_non_finite_gravity() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    with pytest.raises(ValueError):
+        self_weight_loads(model, gravity=math.nan)
+
+
+def test_self_weight_loads_rejects_zero_direction() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    with pytest.raises(ValueError):
+        self_weight_loads(model, direction=(0.0, 0.0, 0.0))
+
+
+def test_self_weight_loads_rejects_malformed_direction() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    with pytest.raises(ValueError):
+        self_weight_loads(model, direction=(1.0, 0.0))  # type: ignore[arg-type]
+
+
+def test_self_weight_loads_direction_does_not_need_to_be_unit_vector() -> None:
+    model = _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    load_unit = self_weight_loads(model, direction=(0.0, 0.0, -1.0))[0]
+    load_scaled = self_weight_loads(model, direction=(0.0, 0.0, -100.0))[0]
+    assert load_unit.wz == pytest.approx(load_scaled.wz)
+
+
+def test_self_weight_loads_rejects_non_element3d() -> None:
+    model = AnalysisModel()
+    n1 = Node(1, 0.0, 0.0, 0.0)
+    n2 = Node(2, 1000.0, 0.0, 0.0)
+    model.add_node(n1)
+    model.add_node(n2)
+    model.add_element(_NonFrame3DElement(1, (n1, n2), STEEL, SECTION))
+    with pytest.raises(TypeError):
+        self_weight_loads(model)
+
+
+def test_self_weight_loads_scales_linearly_with_area() -> None:
+    section_2x = Section(
+        name="Sec2x", A=2 * SECTION.A, Iy=SECTION.Iy, Iz=SECTION.Iz, J=SECTION.J,
+        Wply=SECTION.Wply, Wplz=SECTION.Wplz, Wely=SECTION.Wely, Welz=SECTION.Welz,
+    )
+    n1 = Node(1, 0.0, 0.0, 0.0)
+    n2 = Node(2, 4000.0, 0.0, 0.0)
+    model = AnalysisModel()
+    model.add_node(n1)
+    model.add_node(n2)
+    model.add_element(Element3D(1, (n1, n2), STEEL, section_2x))
+    load = self_weight_loads(model)[0]
+    reference = self_weight_loads(
+        _model_with_single_element(Node(1, 0.0, 0.0, 0.0), Node(2, 4000.0, 0.0, 0.0))
+    )[0]
+    assert load.wz == pytest.approx(2.0 * reference.wz)
