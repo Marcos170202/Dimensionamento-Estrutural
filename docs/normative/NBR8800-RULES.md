@@ -137,10 +137,13 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
 - **DESCRIPTION:** Força axial de flambagem elástica por flexão em
   torno de um eixo principal de inércia. **LIMITAÇÃO DE SEGURANÇA
   REGISTRADA**: 5.3.5.1 exige `Ne = min(Nex, Ney, Nez)`, onde `Nez`
-  (flambagem por torção, caso c) não é implementado nesta fase — requer
-  a constante de empenamento `Cw`, ainda não exposta por `Section`.
-  Seções monossimétricas/assimétricas (5.3.5.2/5.3.5.3, flexo-torção)
-  também não são implementadas. Usar apenas `min(Nex, Ney)` como `Ne`
+  (flambagem por torção, caso c) não é implementado nesta fase — a
+  fórmula em si (que usa `Cw`, `J`, `G` e o raio de giração polar `r0`)
+  ainda não foi escrita/validada, ainda que `Section` já exponha `Cw`
+  (opcional) desde a adição de `radius_of_gyration_y/z` (ver commit
+  subsequente a este). Seções monossimétricas/assimétricas
+  (5.3.5.2/5.3.5.3, flexo-torção) também não são implementadas. Usar
+  apenas `min(Nex, Ney)` como `Ne`
   é seguro somente quando torção/flexo-torção não governam (seções
   fechadas, ou I/H com dupla simetria e travamento lateral adequado);
   para seções abertas de parede fina onde esses modos podem governar,
@@ -180,8 +183,9 @@ adiado, não esquecido:
 - **5.2.7** (página 44): barras redondas com extremidades rosqueadas.
 - **5.2.8** (página 44): limitação do índice de esbeltez (`ℓ/r ≤ 300`)
   — é uma recomendação ("recomenda-se"), não um estado-limite último
-  obrigatório, e depende de `Section` expor raio de giração (ainda não
-  implementado).
+  obrigatório. `Section.radius_of_gyration_y/z` (adicionado após
+  NBR8800-COMP-005) já fornece o `r`; falta apenas a função de
+  verificação em si (não implementada).
 - **5.3.4.2/5.3.4.3** (página 46-48): área efetiva reduzida por
   flambagem local (larguras efetivas, Tabela 4 de `(b/t)lim` por grupo
   de elemento AA/AL, Tabela 5 de fatores `c1`/`c2`). Requer
@@ -191,16 +195,18 @@ adiado, não esquecido:
   seção — `A`, `Iy`, `Iz`, etc. — não a geometria detalhada de cada
   elemento).
 - **5.3.5.1-c)/5.3.5.2/5.3.5.3** (página 48-49): flambagem por torção
-  e flexo-torção. Requer a constante de empenamento `Cw` da seção
-  (ainda não exposta por `Section`) — ver LIMITAÇÃO DE SEGURANÇA
-  registrada em NBR8800-COMP-005 acima.
+  e flexo-torção. `Section.Cw` (opcional, `None` por padrão) já existe
+  no domínio — a fórmula de `Nez`/`Neyz` em si ainda não está
+  implementada (a LIMITAÇÃO DE SEGURANÇA registrada em
+  NBR8800-COMP-005 continua valendo até essa fórmula ser escrita e
+  validada).
 - **5.3.5.4** (página 50-51): comprimento destravado equivalente para
   cantoneiras simples conectadas por uma aba.
 - **5.3.6** (página 51-52): requisitos específicos para barras
   compostas (perfis múltiplos trabalhando em conjunto).
 - **5.3.7** (página 52): limitação do índice de esbeltez de barras
   comprimidas (`ℓ/r ≤ 200`) — mesmo status de 5.2.8 (recomendação, não
-  estado-limite obrigatório; depende de `Section` expor raio de
-  giração).
+  estado-limite obrigatório). `Section.radius_of_gyration_y/z` já
+  fornece o `r`; falta apenas a função de verificação em si.
 - **5.4 em diante**: flexão, cisalhamento, combinação de esforços —
   próximos incrementos desta mesma fase normativa.

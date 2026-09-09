@@ -13,6 +13,7 @@ MPa. Consequentemente:
 - ``Iy``, ``Iz``   : mm^4
 - ``J``            : mm^4
 - ``Wply``, ``Wplz``, ``Wely``, ``Welz`` : mm^3
+- ``Cw``           : mm^6
 
 Os eixos locais y/z sao os eixos principais de inercia da secao,
 conforme convencao usada em ``elements/frame3d.py``.
@@ -20,6 +21,7 @@ conforme convencao usada em ``elements/frame3d.py``.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -49,6 +51,15 @@ class Section:
         Modulo elastico de resistencia em torno de y (mm^3).
     Welz:
         Modulo elastico de resistencia em torno de z (mm^3).
+    Cw:
+        Constante de empenamento da secao (mm^6), usada em flambagem
+        por torcao/flexo-torcao (ex.: NBR 8800:2024, 5.3.5.1-c).
+        ``None`` (padrao) significa "nao caracterizada" — deliberado
+        em vez de um valor numerico arbitrario (ex.: ``0.0``), que
+        poderia ser confundido com um valor real (``Cw=0`` e
+        fisicamente valido para secoes fechadas/tubulares). Qualquer
+        verificacao que precise de ``Cw`` deve rejeitar explicitamente
+        o caso ``None``, nunca assumir um valor.
     dimensions:
         Parametros geometricos de origem da secao (ex.:
         ``{"h": 310.0, "bf": 167.0, "tw": 5.6, "tf": 9.1}``).
@@ -65,6 +76,7 @@ class Section:
     Wplz: float
     Wely: float
     Welz: float
+    Cw: float | None = None
     dimensions: Mapping[str, float] = field(
         default_factory=lambda: MappingProxyType({}), hash=False
     )
@@ -97,6 +109,13 @@ class Section:
                 "para qualquer secao real."
             )
 
+        if self.Cw is not None and not (self.Cw >= 0):
+            # ">= 0" (nao "> 0"): Cw=0 e fisicamente valido para secoes
+            # fechadas/tubulares (sem empenamento). "not (valor >= 0)"
+            # em vez de "valor < 0" pelo mesmo motivo do bloco acima —
+            # rejeita NaN corretamente.
+            raise ValueError(f"Section.Cw deve ser nao-negativo, recebido {self.Cw!r}.")
+
         # dimensions precisa ser hasheavel/imutavel para manter o dataclass
         # congelavel e comparavel por valor (== / hash).
         object.__setattr__(self, "dimensions", MappingProxyType(dict(self.dimensions)))
@@ -110,3 +129,19 @@ class Section:
     def shape_factor_z(self) -> float:
         """Fator de forma em torno de z: ``Wplz / Welz`` (>= 1)."""
         return self.Wplz / self.Welz
+
+    @property
+    def radius_of_gyration_y(self) -> float:
+        """Raio de giracao em torno do eixo local y: ``sqrt(Iy/A)`` (mm).
+
+        Usado, por exemplo, na limitacao (recomendada, nao obrigatoria)
+        do indice de esbeltez de barras tracionadas/comprimidas (NBR
+        8800:2024, 5.2.8/5.3.7: ``L/r``)."""
+        return math.sqrt(self.Iy / self.A)
+
+    @property
+    def radius_of_gyration_z(self) -> float:
+        """Raio de giracao em torno do eixo local z: ``sqrt(Iz/A)`` (mm).
+
+        Ver :attr:`radius_of_gyration_y`."""
+        return math.sqrt(self.Iz / self.A)

@@ -12,7 +12,11 @@ completa do programa) para o escopo integral do projeto.
 - `DOF` — os 6 graus de liberdade nodais (UX, UY, UZ, RX, RY, RZ);
 - `Node` — no estrutural (id, coordenadas, DOFs);
 - `Material` — material elastico-linear (E, G, density, fy, fu, poisson);
-- `Section` — secao transversal (A, Iy, Iz, J, Wply/z, Wely/z, dimensions);
+- `Section` — secao transversal (A, Iy, Iz, J, Wply/z, Wely/z, Cw
+  opcional, dimensions), com raio de giracao (`radius_of_gyration_y/z`)
+  computado — preparado para flambagem por torcao/flexo-torcao e
+  limitacao de esbeltez da NBR 8800 (ainda nao implementadas, ver
+  `docs/normative/NBR8800-RULES.md`);
 - `Element` — contrato abstrato do metodo da rigidez direta;
 - `Element3D` — elemento de portico espacial (12 DOFs: axial, flexao
   Y, flexao Z, torcao), com `local_stiffness_matrix()`,
