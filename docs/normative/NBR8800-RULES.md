@@ -225,6 +225,83 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
 - **TEST:** `tests/unit/test_nbr8800_slenderness.py`,
   `tests/validation/test_nbr8800_slenderness_benchmark.py` (VAL-0009).
 
+## RULE-ID: NBR8800-SHEAR-001
+
+- **SOURCE:** NBR 8800:2024, 5.4.1.3, página 53: "No dimensionamento
+  das barras submetidas a momento fletor e força cortante, devem ser
+  atendidas as seguintes condições: MSd ≤ MRd; VSd ≤ VRd".
+- **DESCRIPTION:** Condição de dimensionamento ao cisalhamento:
+  `Vsd ≤ Vrd`. A condição equivalente de momento fletor (`Msd ≤ Mrd`,
+  5.4.2) **não é implementada nesta fase** — ver "Fora do escopo"
+  abaixo.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.shear.check_shear_major_axis`
+  (`ShearCheckResult.is_ok`).
+- **TEST:** `tests/unit/test_nbr8800_shear.py`,
+  `tests/validation/test_nbr8800_shear_benchmark.py` (VAL-0010).
+
+## RULE-ID: NBR8800-SHEAR-002
+
+- **SOURCE:** NBR 8800:2024, 5.4.3.1.2, página 57-58: "A força cortante
+  correspondente à plastificação da alma por cisalhamento é calculada
+  conforme a seguinte equação: Vpℓ = 0,60 Aw fy. Nessa equação, Aw é a
+  área efetiva de cisalhamento, que deve ser considerada igual a:
+  Aw = d.tw, onde d é a altura total da seção transversal; tw é a
+  espessura da alma."
+- **DESCRIPTION:** Força cortante correspondente à plastificação da
+  alma por cisalhamento (`Vpℓ = 0,60·Aw·fy`) e área efetiva de
+  cisalhamento para seções I, H e U fletidas em relação ao eixo
+  perpendicular à alma (`Aw = d·tw`).
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.shear.plastic_shear_force`,
+  `openstruct.normative.nbr8800.shear.effective_shear_area_major_axis`.
+- **TEST:** `tests/unit/test_nbr8800_shear.py`.
+
+## RULE-ID: NBR8800-SHEAR-003
+
+- **SOURCE:** NBR 8800:2024, 5.4.3.1.1, página 57: "Em seções I, H e U
+  fletidas em relação ao eixo central de inércia perpendicular à alma
+  (eixo de maior momento de inércia), a força cortante resistente de
+  cálculo, VRd, é calculada conforme a seguir: para λ ≤ λp: VRd =
+  Vpℓ/γa1; para λp < λ ≤ λr: VRd = (λp/λ)(Vpℓ/γa1); para λ > λr: VRd =
+  1,24(λp/λ)²(Vpℓ/γa1); onde λ = h/tw; λp = 1,10·sqrt(kv·E/fy); λr =
+  1,37·sqrt(kv·E/fy); h é a altura da alma, considerada igual à
+  distância entre as faces internas das mesas nos perfis soldados e
+  igual a esse valor subtraindo os dois raios de concordância entre
+  mesa e alma nos perfis laminados."
+- **DESCRIPTION:** Força cortante resistente de cálculo `Vrd` em 3
+  trechos (plastificação / flambagem inelástica / flambagem elástica
+  por cisalhamento), aplicável apenas ao caso de seções I, H e U
+  fletidas em relação ao eixo perpendicular à alma (eixo de maior
+  momento de inércia — o caso mais comum). Nota: distinção crítica
+  entre `h` (altura livre da alma, usada aqui e em `kv`) e `d` (altura
+  total da seção, usada em `Aw`, NBR8800-SHEAR-002) — ver ATENÇÃO na
+  docstring de `shear_buckling_coefficient`. Há uma pequena
+  descontinuidade (~0,4% relativo) em `λ=λr`, pois `λr/λp =
+  1,37/1,10 = 1,24545...` não é exatamente `1,24` — característica da
+  fórmula empírica da norma (mesma natureza da descontinuidade de
+  NBR8800-COMP-002 em `λ0=1,5`), não um erro de implementação.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.shear.shear_resistance`,
+  `openstruct.normative.nbr8800.shear.check_shear_major_axis`.
+- **TEST:** `tests/unit/test_nbr8800_shear.py`,
+  `tests/validation/test_nbr8800_shear_benchmark.py` (VAL-0010).
+
+## RULE-ID: NBR8800-SHEAR-004
+
+- **SOURCE:** NBR 8800:2024, 5.4.3.1.1, página 57: "kv = 5,34, para
+  almas sem enrijecedores transversais e para a/h > 3; kv = 5,0 +
+  5/(a/h)², para todos os outros casos [...] a é a distância entre as
+  linhas de centro de dois enrijecedores transversais adjacentes."
+- **DESCRIPTION:** Coeficiente de flambagem por cisalhamento `kv`,
+  usado em `λp`/`λr` (NBR8800-SHEAR-003). Não implementa 5.4.3.1.3
+  (requisitos construtivos para dimensionamento dos próprios
+  enrijecedores transversais — a distância `a` é recebida como
+  parâmetro, não verificada/dimensionada).
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.shear.shear_buckling_coefficient`.
+- **TEST:** `tests/unit/test_nbr8800_shear.py`.
+
 ## Fora do escopo desta fase (não implementado)
 
 Registrado aqui para rastreabilidade do que foi conscientemente

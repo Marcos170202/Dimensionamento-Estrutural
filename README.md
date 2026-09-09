@@ -96,7 +96,14 @@ Rastreabilidade completa de cada regra em
   índice de esbeltez de barras individuais tracionadas (`ℓ/r ≤ 300`,
   5.2.8.1) e comprimidas (`ℓ/r ≤ 200`, 5.3.7.1); validado em VAL-0009,
   incluindo um caso onde a mesma barra passa na recomendação de tração
-  mas não na de compressão (os dois limites são independentes).
+  mas não na de compressão (os dois limites são independentes);
+- `check_shear_major_axis` — força cortante resistente de cálculo de
+  seções I, H e U fletidas em relação ao eixo perpendicular à alma
+  (NBR 8800:2024, 5.4.1.3/5.4.3.1): curva em 3 trechos (plastificação
+  da alma / flambagem inelástica / flambagem elástica por
+  cisalhamento), com o coeficiente `kv` considerando enrijecedores
+  transversais opcionais; validado em VAL-0010 por cálculo manual
+  independente dos três trechos.
 
 **Fora do escopo desta fase**: cálculo do coeficiente de redução da
 área líquida em tração (`Ct`, depende de modelagem de furos/soldas/
@@ -104,11 +111,14 @@ parafusos ainda não implementada), chapas ligadas por pino, barras
 rosqueadas, requisito de esbeltez para barras COMPOSTAS (apenas barras
 individuais estão cobertas), área efetiva reduzida por flambagem local
 em compressão, flambagem por flexo-torção em seções
-monossimétricas/assimétricas, cantoneiras simples, barras compostas, e
-qualquer verificação além de
-tração/compressão (flexão, cisalhamento, combinação de esforços,
-ligações) — ver `docs/normative/NBR8800-RULES.md` para a lista
-completa do que foi conscientemente adiado.
+monossimétricas/assimétricas, cantoneiras simples, barras compostas,
+momento fletor resistente de cálculo (5.4.2, depende dos Anexos D/E —
+classificação da seção e flambagem lateral com torção), força cortante
+resistente para seções tubulares/caixão/T/cantoneiras duplas/I-H-U em
+torno do eixo fraco/tubulares circulares (5.4.3.2 a 5.4.3.6), e
+combinação de esforços (5.5) e ligações — ver
+`docs/normative/NBR8800-RULES.md` para a lista completa do que foi
+conscientemente adiado.
 
 ## Convenção de unidades
 
@@ -198,7 +208,8 @@ src/openstruct/
         ├── resistance_factors.py   # LoadCombinationClass, SteelResistanceFactors (Tabela 3)
         ├── tension.py               # check_tension_member (5.2 — barras tracionadas)
         ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
-        └── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
+        ├── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
+        └── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
 
 tests/
 ├── unit/                    # testes unitarios por classe

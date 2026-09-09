@@ -13,11 +13,14 @@ simetria ou simetricas em relacao a um ponto — ver ATENCAO de
 seguranca na docstring de ``compression`` sobre flexo-torcao em
 secoes monossimetricas/assimetricas, ainda nao implementada), a
 limitacao RECOMENDADA (nao obrigatoria) do indice de esbeltez de
-barras tracionadas/comprimidas individuais (5.2.8.1/5.3.7.1) e os
+barras tracionadas/comprimidas individuais (5.2.8.1/5.3.7.1), a forca
+cortante resistente de calculo de secoes I/H/U fletidas em relacao ao
+eixo perpendicular a alma (5.4.1.3/5.4.3.1 — ver docstring de
+``shear`` para o restante de 5.4, ainda fora do escopo) e os
 coeficientes de ponderacao da resistencia do aco estrutural (4.9.2,
 Tabela 3). Ver docstrings de ``tension``, ``compression``,
-``slenderness`` e ``resistance_factors`` para os limites exatos do
-escopo.
+``slenderness``, ``shear`` e ``resistance_factors`` para os limites
+exatos do escopo.
 """
 
 from __future__ import annotations
@@ -36,6 +39,14 @@ from .resistance_factors import (
     LoadCombinationClass,
     SteelResistanceFactors,
     steel_resistance_factors,
+)
+from .shear import (
+    ShearCheckResult,
+    check_shear_major_axis,
+    effective_shear_area_major_axis,
+    plastic_shear_force,
+    shear_buckling_coefficient,
+    shear_resistance,
 )
 from .slenderness import (
     COMPRESSION_SLENDERNESS_LIMIT,
@@ -56,18 +67,24 @@ __all__ = [
     "TENSION_SLENDERNESS_LIMIT",
     "CompressionCheckResult",
     "LoadCombinationClass",
+    "ShearCheckResult",
     "SlendernessCheckResult",
     "SteelResistanceFactors",
     "TensionCheckResult",
     "check_compression_member",
     "check_compression_slenderness",
+    "check_shear_major_axis",
     "check_tension_member",
     "check_tension_slenderness",
     "effective_area_without_local_buckling",
+    "effective_shear_area_major_axis",
     "flexural_buckling_force",
     "net_area_without_holes",
+    "plastic_shear_force",
     "polar_radius_of_gyration",
     "reduction_factor",
+    "shear_buckling_coefficient",
+    "shear_resistance",
     "slenderness_parameter",
     "slenderness_ratio",
     "steel_resistance_factors",
