@@ -90,13 +90,20 @@ Rastreabilidade completa de cada regra em
   `docs/normative/NBR8800-RULES.md` antes de usar nessas seções;
 - `steel_resistance_factors` — coeficientes de ponderação da
   resistência do aço estrutural (γa1/γa2) por classe de combinação de
-  ações (NBR 8800:2024, 4.9.2, Tabela 3).
+  ações (NBR 8800:2024, 4.9.2, Tabela 3);
+- `check_tension_slenderness`/`check_compression_slenderness` —
+  limitação RECOMENDADA (não estado-limite último obrigatório) do
+  índice de esbeltez de barras individuais tracionadas (`ℓ/r ≤ 300`,
+  5.2.8.1) e comprimidas (`ℓ/r ≤ 200`, 5.3.7.1); validado em VAL-0009,
+  incluindo um caso onde a mesma barra passa na recomendação de tração
+  mas não na de compressão (os dois limites são independentes).
 
 **Fora do escopo desta fase**: cálculo do coeficiente de redução da
 área líquida em tração (`Ct`, depende de modelagem de furos/soldas/
 parafusos ainda não implementada), chapas ligadas por pino, barras
-rosqueadas, limitação do índice de esbeltez, área efetiva reduzida por
-flambagem local em compressão, flambagem por flexo-torção em seções
+rosqueadas, requisito de esbeltez para barras COMPOSTAS (apenas barras
+individuais estão cobertas), área efetiva reduzida por flambagem local
+em compressão, flambagem por flexo-torção em seções
 monossimétricas/assimétricas, cantoneiras simples, barras compostas, e
 qualquer verificação além de
 tração/compressão (flexão, cisalhamento, combinação de esforços,
@@ -190,7 +197,8 @@ src/openstruct/
     └── nbr8800/                  # ABNT NBR 8800:2024
         ├── resistance_factors.py   # LoadCombinationClass, SteelResistanceFactors (Tabela 3)
         ├── tension.py               # check_tension_member (5.2 — barras tracionadas)
-        └── compression.py           # check_compression_member (5.3 — barras comprimidas)
+        ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
+        └── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
 
 tests/
 ├── unit/                    # testes unitarios por classe

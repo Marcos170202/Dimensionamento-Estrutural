@@ -81,6 +81,29 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
   `openstruct.normative.nbr8800.tension.net_area_without_holes`.
 - **TEST:** `tests/unit/test_nbr8800_tension.py`.
 
+## RULE-ID: NBR8800-TRAC-004
+
+- **SOURCE:** NBR 8800:2024, 5.2.8.1, página 44: "Recomenda-se que o
+  índice de esbeltez das barras tracionadas, considerado como a maior
+  relação entre o comprimento destravado e o raio de giração
+  correspondente, excetuando-se tirantes de barras redondas
+  pré-tensionadas ou outras barras que tenham sido montadas com
+  pré-tensão, não supere 300 (ver 5.2.8.3)."
+- **DESCRIPTION:** Limitação RECOMENDADA (não estado-limite último
+  obrigatório) do índice de esbeltez de uma barra tracionada
+  individual: `ℓ/r ≤ 300`, tomando o maior valor entre os dois eixos
+  principais. Não implementa 5.2.8.2 (requisito adicional para barras
+  compostas) nem modela tirantes pré-tensionados (exceção citada no
+  texto). 5.2.8.3 (responsável técnico pode estabelecer novos limites
+  se a recomendação não for adotada) não é uma regra numérica —
+  refletida apenas na semântica de `is_within_recommended_limit`
+  (`False` não significa "reprovado").
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.slenderness.check_tension_slenderness`
+  (`TENSION_SLENDERNESS_LIMIT`, `slenderness_ratio`).
+- **TEST:** `tests/unit/test_nbr8800_slenderness.py`,
+  `tests/validation/test_nbr8800_slenderness_benchmark.py` (VAL-0009).
+
 ## RULE-ID: NBR8800-COMP-001
 
 - **SOURCE:** NBR 8800:2024, 5.3.1 "No dimensionamento dessas barras,
@@ -181,6 +204,27 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
   `tests/validation/test_nbr8800_torsional_buckling_benchmark.py`
   (VAL-0008).
 
+## RULE-ID: NBR8800-COMP-008
+
+- **SOURCE:** NBR 8800:2024, 5.3.7.1, página 52: "Recomenda-se que o
+  índice de esbeltez das barras comprimidas, incluindo as barras
+  compostas atuando como uma unidade, considerado como a maior relação
+  entre o comprimento destravado associado à flexão e o raio de
+  giração correspondente, não supere 200."
+- **DESCRIPTION:** Limitação RECOMENDADA (não estado-limite último
+  obrigatório) do índice de esbeltez de uma barra comprimida
+  individual: `ℓ/r ≤ 200`, tomando o maior valor entre os dois eixos
+  principais. Ao contrário de 5.2.8, esta cláusula não tem uma
+  subseção equivalente a 5.2.8.3 (não há escape explícito para novos
+  limites) — mesmo assim, `is_within_recommended_limit=False` não é
+  tratado como reprovação normativa (é uma recomendação, não `Nc,Sd
+  <= Nc,Rd`).
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.slenderness.check_compression_slenderness`
+  (`COMPRESSION_SLENDERNESS_LIMIT`, `slenderness_ratio`).
+- **TEST:** `tests/unit/test_nbr8800_slenderness.py`,
+  `tests/validation/test_nbr8800_slenderness_benchmark.py` (VAL-0009).
+
 ## Fora do escopo desta fase (não implementado)
 
 Registrado aqui para rastreabilidade do que foi conscientemente
@@ -208,11 +252,12 @@ adiado, não esquecido:
   o texto oficial antes de implementar.
 - **5.2.6** (página 43): chapas ligadas por pino.
 - **5.2.7** (página 44): barras redondas com extremidades rosqueadas.
-- **5.2.8** (página 44): limitação do índice de esbeltez (`ℓ/r ≤ 300`)
-  — é uma recomendação ("recomenda-se"), não um estado-limite último
-  obrigatório. `Section.radius_of_gyration_y/z` (adicionado após
-  NBR8800-COMP-005) já fornece o `r`; falta apenas a função de
-  verificação em si (não implementada).
+- **5.2.8.2** (página 44): requisito adicional de esbeltez para barras
+  COMPOSTAS tracionadas (`ℓ/rmin` de cada perfil componente entre
+  ligações adjacentes). A verificação de 5.2.8.1 para barra individual
+  já está implementada (`NBR8800-TRAC-004`) — falta a modelagem de
+  barras compostas em si (múltiplos perfis com ligações
+  intermediárias).
 - **5.3.4.2/5.3.4.3** (página 46-48): área efetiva reduzida por
   flambagem local (larguras efetivas, Tabela 4 de `(b/t)lim` por grupo
   de elemento AA/AL, Tabela 5 de fatores `c1`/`c2`). Requer
@@ -233,9 +278,5 @@ adiado, não esquecido:
   cantoneiras simples conectadas por uma aba.
 - **5.3.6** (página 51-52): requisitos específicos para barras
   compostas (perfis múltiplos trabalhando em conjunto).
-- **5.3.7** (página 52): limitação do índice de esbeltez de barras
-  comprimidas (`ℓ/r ≤ 200`) — mesmo status de 5.2.8 (recomendação, não
-  estado-limite obrigatório). `Section.radius_of_gyration_y/z` já
-  fornece o `r`; falta apenas a função de verificação em si.
 - **5.4 em diante**: flexão, cisalhamento, combinação de esforços —
   próximos incrementos desta mesma fase normativa.
