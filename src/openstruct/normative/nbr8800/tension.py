@@ -33,6 +33,7 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
+from ._check_result import CheckResult
 from ._validation import is_positive_finite
 from .resistance_factors import SteelResistanceFactors
 
@@ -53,7 +54,7 @@ def net_area_without_holes(gross_area: float) -> float:
 
 
 @dataclass(frozen=True, slots=True)
-class TensionCheckResult:
+class TensionCheckResult(CheckResult):
     """Resultado da verificacao de uma barra tracionada (NBR 8800:2024, 5.2.1/5.2.2).
 
     Atributos
@@ -105,15 +106,14 @@ class TensionCheckResult:
         return "ruptura_secao_liquida"
 
     @property
-    def utilization(self) -> float:
-        """Taxa de utilizacao ``Nt,Sd / Nt,Rd`` (<=1 significa que a
-        condicao de 5.2.1.2 e atendida)."""
-        return self.nt_sd / self.nt_rd
+    def sd(self) -> float:
+        """Alias generico de :attr:`nt_sd` — ver :class:`CheckResult`."""
+        return self.nt_sd
 
     @property
-    def is_ok(self) -> bool:
-        """Condicao de dimensionamento de 5.2.1.2: ``Nt,Sd <= Nt,Rd``."""
-        return self.nt_sd <= self.nt_rd
+    def rd(self) -> float:
+        """Alias generico de :attr:`nt_rd` — ver :class:`CheckResult`."""
+        return self.nt_rd
 
 
 def check_tension_member(

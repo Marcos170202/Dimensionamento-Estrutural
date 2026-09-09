@@ -13,20 +13,22 @@ Fases ja implementadas:
   Assembly, BoundaryConditions, solver linear e :func:`run_analysis`.
 - NORMATIVE ENGINE (PROGRAM_MASTER secao 30, inicio): modulo NBR 8800
   em ``openstruct.normative.nbr8800`` — verificacao de barras
-  tracionadas (5.2). Arquitetura de plugin, deliberadamente FORA do
+  tracionadas (5.2) e comprimidas (5.3, apenas flambagem por flexao —
+  ver limitacao de seguranca em ``compression.py`` sobre torcao/
+  flexo-torcao). Arquitetura de plugin, deliberadamente FORA do
   namespace `openstruct` de topo (ver docstring de
   ``openstruct.normative``) — o nucleo de analise permanece agnostico
   de norma.
 
 GUI, IA, P-Delta, flambagem e o restante do dimensionamento de
-elementos metalicos (compressao, flexao, cisalhamento, combinacao de
-esforcos) permanecem fases futuras — ver docs/decisions/ADR-002 e
+elementos metalicos (flexao, cisalhamento, combinacao de esforcos,
+ligacoes) permanecem fases futuras — ver docs/decisions/ADR-002 e
 docs/normative/NBR8800-RULES.md para o escopo normativo exato ja
 coberto.
 """
 
 from .results import AnalysisResult, run_analysis
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = ["AnalysisResult", "run_analysis"]
