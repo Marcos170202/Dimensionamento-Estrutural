@@ -5,7 +5,7 @@ estruturas metalicas em 3D. Ver `AGENTS_MASTER.md` (sistema
 multiagente de desenvolvimento) e `PROGRAM_MASTER.md` (especificacao
 completa do programa) para o escopo integral do projeto.
 
-## Estado atual: SOLVER V1 ("3D FRAME SOLVER V1")
+## Estado atual: SOLVER V1 ("3D FRAME SOLVER V1") + início do NORMATIVE ENGINE
 
 ### Fase FOUNDATION + CORE STRUCTURAL MODEL (modelo de dominio)
 
@@ -52,8 +52,34 @@ completa do programa) para o escopo integral do projeto.
   resultados fisicamente inconsistentes.
 
 **Fora do escopo desta fase** (fases futuras do PROGRAM_MASTER):
-momento concentrado fora dos nos, GUI (PySide6), IA, P-Delta,
-flambagem, modulos normativos (incluindo NBR 8800) e dimensionamento.
+momento concentrado fora dos nos, GUI (PySide6), IA, P-Delta e
+flambagem.
+
+### Fase NORMATIVE ENGINE (início — NBR 8800)
+
+Arquitetura de plugin (`openstruct.normative.nbr8800`), deliberadamente
+fora do núcleo de análise (`domain`/`analysis`/`solver`/`results`
+permanecem agnósticos de norma — ver `.claude/agents/normative.md`).
+Rastreabilidade completa de cada regra em
+`docs/normative/NBR8800-RULES.md`.
+
+- `check_tension_member` — verificação de barras prismáticas
+  tracionadas (NBR 8800:2024, 5.2.1.2/5.2.2): força axial resistente
+  de cálculo por escoamento da seção bruta e por ruptura da seção
+  líquida, taxa de utilização e estado-limite governante; validado em
+  VAL-0006 por cálculo manual independente das fórmulas lidas
+  diretamente do texto normativo;
+- `steel_resistance_factors` — coeficientes de ponderação da
+  resistência do aço estrutural (γa1/γa2) por classe de combinação de
+  ações (NBR 8800:2024, 4.9.2, Tabela 3).
+
+**Fora do escopo desta fase**: cálculo do coeficiente de redução da
+área líquida (`Ct`, depende de modelagem de furos/soldas/parafusos
+ainda não implementada), chapas ligadas por pino, barras rosqueadas,
+limitação do índice de esbeltez, e qualquer verificação além de tração
+(compressão, flexão, cisalhamento, combinação de esforços, ligações) —
+ver `docs/normative/NBR8800-RULES.md` para a lista completa do que foi
+conscientemente adiado.
 
 ## Convenção de unidades
 
@@ -136,15 +162,20 @@ src/openstruct/
 │   └── boundary_conditions.py    # BoundaryConditions, ModelInstabilityError
 ├── solver/                    # SOLVER (algebra linear pura)
 │   └── linear.py                # solve_linear_system
-└── results/                   # RESULTS (orquestracao + saida)
-    └── analysis_result.py       # AnalysisResult, run_analysis, EquilibriumResidualError
+├── results/                   # RESULTS (orquestracao + saida)
+│   └── analysis_result.py       # AnalysisResult, run_analysis, EquilibriumResidualError
+└── normative/                 # NORMATIVE (plugin architecture, agnostico do nucleo)
+    └── nbr8800/                  # ABNT NBR 8800:2024
+        ├── resistance_factors.py   # LoadCombinationClass, SteelResistanceFactors (Tabela 3)
+        └── tension.py               # check_tension_member (5.2 — barras tracionadas)
 
 tests/
 ├── unit/                    # testes unitarios por classe
-└── validation/               # comparacao contra solucoes analiticas/estatica pura
+└── validation/               # comparacao contra solucoes analiticas/estatica pura/norma
 
 docs/
 ├── validation/               # VAL-XXXX.md — registros de validacao de engenharia
+├── normative/                 # NBR8800-RULES.md — rastreabilidade RULE-ID de cada regra
 └── decisions/                 # ADR-XXX.md — decisoes arquiteturais
 
 .claude/
