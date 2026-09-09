@@ -17,10 +17,11 @@ Fases ja implementadas:
   torcao para secoes com dupla simetria ou simetricas em relacao a um
   ponto — ver limitacao de seguranca em ``compression.py`` sobre
   flexo-torcao em secoes monossimetricas/assimetricas, ainda nao
-  implementada). Arquitetura de plugin, deliberadamente FORA do
-  namespace `openstruct` de topo (ver docstring de
-  ``openstruct.normative``) — o nucleo de analise permanece agnostico
-  de norma.
+  implementada), alem da limitacao RECOMENDADA (nao obrigatoria) do
+  indice de esbeltez (5.2.8.1/5.3.7.1). Arquitetura de plugin,
+  deliberadamente FORA do namespace `openstruct` de topo (ver
+  docstring de ``openstruct.normative``) — o nucleo de analise
+  permanece agnostico de norma.
 
 GUI, IA, P-Delta, flambagem e o restante do dimensionamento de
 elementos metalicos (flexao, cisalhamento, combinacao de esforcos,
@@ -31,6 +32,6 @@ coberto.
 
 from .results import AnalysisResult, run_analysis
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = ["AnalysisResult", "run_analysis"]
