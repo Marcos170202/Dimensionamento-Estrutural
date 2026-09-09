@@ -81,6 +81,76 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
   `openstruct.normative.nbr8800.tension.net_area_without_holes`.
 - **TEST:** `tests/unit/test_nbr8800_tension.py`.
 
+## RULE-ID: NBR8800-COMP-001
+
+- **SOURCE:** NBR 8800:2024, 5.3.1 "No dimensionamento dessas barras,
+  deve ser atendida a condição: Nc,Sd ≤ Nc,Rd" e 5.3.2 "Força axial
+  resistente de cálculo", página 45.
+- **DESCRIPTION:** Força axial de compressão resistente de cálculo,
+  associada aos estados-limite últimos de instabilidade (por flexão,
+  torção ou flexo-torção) e de instabilidade local:
+  `Nc,Rd = χ·Aef·fy / γa1`. A condição de dimensionamento exige
+  `Nc,Sd ≤ Nc,Rd`.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.check_compression_member`
+  (`CompressionCheckResult.nc_rd`, `CompressionCheckResult.is_ok`).
+- **TEST:** `tests/unit/test_nbr8800_compression.py`,
+  `tests/validation/test_nbr8800_compression_benchmark.py` (VAL-0007).
+
+## RULE-ID: NBR8800-COMP-002
+
+- **SOURCE:** NBR 8800:2024, 5.3.3.1 "Fator de redução χ", página 45.
+- **DESCRIPTION:** Fator de redução associado à resistência à
+  compressão: `χ = 0,658^(λ0²)` para `λ0 ≤ 1,5`; `χ = 0,877/λ0²` para
+  `λ0 > 1,5`.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.reduction_factor`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`.
+
+## RULE-ID: NBR8800-COMP-003
+
+- **SOURCE:** NBR 8800:2024, 5.3.3.2, página 45.
+- **DESCRIPTION:** Índice de esbeltez reduzido: `λ0 = sqrt(Ag·fy/Ne)`.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.slenderness_parameter`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`.
+
+## RULE-ID: NBR8800-COMP-004
+
+- **SOURCE:** NBR 8800:2024, 5.3.4.1, página 46: "A área efetiva da
+  seção transversal, Aef, deve ser considerada igual à área bruta, Ag,
+  se todos os elementos componentes da seção transversal possuírem
+  relação entre largura e espessura (b/t) igual ou inferior ao valor
+  (b/t)lim, dado na Tabela 4."
+- **DESCRIPTION:** Caso particular (sem flambagem local) da área
+  efetiva usada em NBR8800-COMP-001: `Aef = Ag`.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.effective_area_without_local_buckling`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`.
+
+## RULE-ID: NBR8800-COMP-005
+
+- **SOURCE:** NBR 8800:2024, 5.3.5.1 "Seções com dupla simetria ou
+  simétricas em relação a um ponto", casos a) e b), página 48: "para
+  flambagem por flexão em relação ao eixo central de inércia x [...]:
+  Nex = π²EIx/Lx²" (e analogamente para o eixo y, `Ney`).
+- **DESCRIPTION:** Força axial de flambagem elástica por flexão em
+  torno de um eixo principal de inércia. **LIMITAÇÃO DE SEGURANÇA
+  REGISTRADA**: 5.3.5.1 exige `Ne = min(Nex, Ney, Nez)`, onde `Nez`
+  (flambagem por torção, caso c) não é implementado nesta fase — requer
+  a constante de empenamento `Cw`, ainda não exposta por `Section`.
+  Seções monossimétricas/assimétricas (5.3.5.2/5.3.5.3, flexo-torção)
+  também não são implementadas. Usar apenas `min(Nex, Ney)` como `Ne`
+  é seguro somente quando torção/flexo-torção não governam (seções
+  fechadas, ou I/H com dupla simetria e travamento lateral adequado);
+  para seções abertas de parede fina onde esses modos podem governar,
+  o chamador deve calcular `Nez`/`Neyz` externamente e incluir no
+  mínimo antes de usar `check_compression_member` — ver ATENÇÃO na
+  docstring do módulo `compression.py`.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.flexural_buckling_force`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`.
+
 ## Fora do escopo desta fase (não implementado)
 
 Registrado aqui para rastreabilidade do que foi conscientemente
@@ -112,5 +182,25 @@ adiado, não esquecido:
   — é uma recomendação ("recomenda-se"), não um estado-limite último
   obrigatório, e depende de `Section` expor raio de giração (ainda não
   implementado).
-- **5.3 em diante**: compressão, flexão, cisalhamento, combinação de
-  esforços — próximos incrementos desta mesma fase normativa.
+- **5.3.4.2/5.3.4.3** (página 46-48): área efetiva reduzida por
+  flambagem local (larguras efetivas, Tabela 4 de `(b/t)lim` por grupo
+  de elemento AA/AL, Tabela 5 de fatores `c1`/`c2`). Requer
+  classificação de cada elemento da seção (alma, mesa, aba de
+  cantoneira etc.) em um grupo da Tabela 4 e sua razão `b/t`, que
+  `Section` não expressa (armazena apenas propriedades agregadas da
+  seção — `A`, `Iy`, `Iz`, etc. — não a geometria detalhada de cada
+  elemento).
+- **5.3.5.1-c)/5.3.5.2/5.3.5.3** (página 48-49): flambagem por torção
+  e flexo-torção. Requer a constante de empenamento `Cw` da seção
+  (ainda não exposta por `Section`) — ver LIMITAÇÃO DE SEGURANÇA
+  registrada em NBR8800-COMP-005 acima.
+- **5.3.5.4** (página 50-51): comprimento destravado equivalente para
+  cantoneiras simples conectadas por uma aba.
+- **5.3.6** (página 51-52): requisitos específicos para barras
+  compostas (perfis múltiplos trabalhando em conjunto).
+- **5.3.7** (página 52): limitação do índice de esbeltez de barras
+  comprimidas (`ℓ/r ≤ 200`) — mesmo status de 5.2.8 (recomendação, não
+  estado-limite obrigatório; depende de `Section` expor raio de
+  giração).
+- **5.4 em diante**: flexão, cisalhamento, combinação de esforços —
+  próximos incrementos desta mesma fase normativa.

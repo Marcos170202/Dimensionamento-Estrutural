@@ -1,6 +1,6 @@
 [project]
 name = "openstruct3d"
-version = "0.3.0"
+version = "0.4.0"
 description = "OpenStruct 3D — nucleo de analise estrutural 3D (SOLVER V1 + inicio do NORMATIVE ENGINE)"
 readme = "README.md"
 requires-python = ">=3.13"
