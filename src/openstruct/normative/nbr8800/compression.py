@@ -13,44 +13,46 @@ Escopo desta fase: apenas
   esbeltez reduzido ``lambda_0``);
 - 5.3.4.1 — area efetiva igual a area bruta quando nao ha flambagem
   local (``b/t <= (b/t)lim`` para todos os elementos da secao);
-- 5.3.5.1, casos a) e b) — forca axial de flambagem por FLEXAO em
-  torno de cada eixo principal de inercia, para secoes com dupla
-  simetria ou simetria em relacao a um ponto.
+- 5.3.5.1, casos a), b) e c) — forca axial de flambagem por FLEXAO em
+  torno de cada eixo principal de inercia (:func:`flexural_buckling_force`)
+  e por TORCAO (:func:`torsional_buckling_force`, com
+  :func:`polar_radius_of_gyration`), para secoes com dupla simetria ou
+  simetria em relacao a um ponto (``x0=y0=0`` na formula de ``r0``).
 
 **ATENCAO — LIMITACAO DE SEGURANCA IMPORTANTE**: NBR 8800:2024, 5.3.5.1
 exige que a forca axial de flambagem, ``Ne``, usada em ``lambda_0``
-seja o MENOR entre TRES valores: flambagem por flexao em x (``Nex``),
-flambagem por flexao em y (``Ney``) e flambagem por TORCAO (``Nez``,
-5.3.5.1-c). Para secoes monossimetricas ou assimetricas, a norma exige
-ainda considerar flambagem por FLEXO-TORCAO (5.3.5.2/5.3.5.3) em vez
-de flexao pura em um dos eixos. **Este modulo so calcula os dois casos
-de flexao pura** (:func:`flexural_buckling_force`, usavel para
-qualquer um dos dois eixos) — flambagem por torcao e flexo-torcao NAO
-sao implementadas aqui, pois dependem da constante de empenamento
-(``Cw``) da secao, ainda nao exposta por
-:class:`~openstruct.domain.section.Section`.
+seja o MENOR entre TRES valores: ``Nex``, ``Ney`` e ``Nez`` (todos
+implementados aqui — ``Ne = min(flexural_buckling_force(E, Iz, Lz_flex),
+flexural_buckling_force(E, Iy, Ly_flex), torsional_buckling_force(...))``).
+Isso cobre COMPLETAMENTE 5.3.5.1 para secoes com dupla simetria (I/H,
+tubulares, secoes-caixao) ou simetricas em relacao a um ponto (Z).
 
-Isso significa: para secoes fechadas (tubulares) ou I/H com dupla
-simetria onde a torcao tipicamente nao governa, usar apenas
-``min(Nex, Ney)`` como ``elastic_buckling_force`` em
-:func:`check_compression_member` e razoavel. Para secoes abertas de
-parede fina onde torcao ou flexo-torcao PODEM governar (cantoneiras,
-secoes em T, Z, C, secoes monossimetricas ou assimetricas em geral), o
-chamador DEVE calcular ``Nez``/``Neyz`` externamente (ou por outro
-meio) e incluir no minimo antes de chamar
-:func:`check_compression_member` — do contrario o resultado pode ser
-NAO CONSERVADOR (inseguro). Ver ``docs/normative/NBR8800-RULES.md``
-para o registro formal desta limitacao (RULE-ID NBR8800-COMP-005).
+**O que continua FORA do escopo**: para secoes MONOSSIMETRICAS
+(5.3.5.2, ex.: perfis U/C, T) ou ASSIMETRICAS (5.3.5.3, ex.:
+cantoneiras de abas desiguais), a norma NAO permite usar
+``min(Nex, Ney, Nez)`` diretamente — exige a forca de flambagem por
+FLEXO-TORCAO (``Neyz``, uma combinacao nao-linear de ``Ney``/``Nez``
+com a excentricidade do centro de cisalhamento ``y0``/``x0``, nao
+nula nesses casos) ou a raiz de uma equacao cubica (5.3.5.3). Nenhuma
+das duas esta implementada aqui. Usar
+:func:`polar_radius_of_gyration`/:func:`torsional_buckling_force` com
+``x0=y0=0`` (o unico caso suportado) para uma secao que NAO tem dupla
+simetria nem simetria em relacao a um ponto produziria um ``Nez``
+correto isoladamente, mas usa-lo em ``min(Nex, Ney, Nez)`` como se
+fosse ``Ne`` seria NAO CONSERVADOR (inseguro) — a formula certa para
+esses casos e ``Neyz``, ainda nao implementada. Ver
+``docs/normative/NBR8800-RULES.md`` para o registro formal (RULE-IDs
+NBR8800-COMP-005/006/007).
 
 **Fora do escopo** (ver ``docs/normative/NBR8800-RULES.md`` para a
 lista completa e o motivo de cada item adiado): 5.3.4.2/5.3.4.3 (area
 efetiva reduzida por flambagem local — Tabelas 4 e 5, requer
 classificacao de elementos AA/AL e razoes ``b/t`` que ``Section`` nao
-expressa), 5.3.5.1-c)/5.3.5.2/5.3.5.3 (torcao e flexo-torcao, ver
-acima), 5.3.5.4 (cantoneiras simples conectadas por uma aba), 5.3.6
-(barras compostas) e 5.3.7 (limitacao do indice de esbeltez — e uma
-RECOMENDACAO, nao um estado-limite ultimo obrigatorio, mesmo status de
-5.2.8 para tracao).
+expressa), 5.3.5.2/5.3.5.3 (flexo-torcao e secoes assimetricas, ver
+ATENCAO acima), 5.3.5.4 (cantoneiras simples conectadas por uma aba),
+5.3.6 (barras compostas) e 5.3.7 (limitacao do indice de esbeltez — e
+uma RECOMENDACAO, nao um estado-limite ultimo obrigatorio, mesmo
+status de 5.2.8 para tracao).
 """
 
 from __future__ import annotations
@@ -102,6 +104,116 @@ def flexural_buckling_force(
             f"flexural_buckling_force: length deve ser finito e positivo, recebido {length!r}."
         )
     return math.pi**2 * elastic_modulus * moment_of_inertia / length**2
+
+
+def polar_radius_of_gyration(radius_of_gyration_y: float, radius_of_gyration_z: float) -> float:
+    """Raio de giracao polar da secao bruta em relacao ao centro de cisalhamento, ``r0``.
+
+    NBR 8800:2024, 5.3.5.1: ``r0 = sqrt(rx^2 + ry^2 + x0^2 + y0^2)``,
+    onde ``x0``/``y0`` sao as coordenadas do centro de cisalhamento em
+    relacao ao centro geometrico da secao. **Esta funcao implementa
+    apenas o caso ``x0=y0=0``** (secoes com dupla simetria ou
+    simetricas em relacao a um ponto, ex.: perfis I/H, tubulares,
+    secoes-caixao, Z) — a norma define explicitamente ``x0=y0=0`` para
+    esses casos. NAO usar o resultado desta funcao para secoes
+    monossimetricas (5.3.5.2) ou assimetricas (5.3.5.3), cujo centro
+    de cisalhamento nao coincide com o centro geometrico (``x0``/``y0``
+    nao-nulos) — ver ATENCAO no docstring do modulo.
+
+    Parametros
+    ----------
+    radius_of_gyration_y, radius_of_gyration_z:
+        Raios de giracao em relacao aos dois eixos centrais de inercia
+        da secao (mm) — tipicamente
+        ``section.radius_of_gyration_y``/``radius_of_gyration_z``.
+    """
+    if not is_positive_finite(radius_of_gyration_y):
+        raise ValueError(
+            f"polar_radius_of_gyration: radius_of_gyration_y deve ser finito e "
+            f"positivo, recebido {radius_of_gyration_y!r}."
+        )
+    if not is_positive_finite(radius_of_gyration_z):
+        raise ValueError(
+            f"polar_radius_of_gyration: radius_of_gyration_z deve ser finito e "
+            f"positivo, recebido {radius_of_gyration_z!r}."
+        )
+    return math.sqrt(radius_of_gyration_y**2 + radius_of_gyration_z**2)
+
+
+def torsional_buckling_force(
+    elastic_modulus: float,
+    shear_modulus: float,
+    warping_constant: float,
+    torsion_constant: float,
+    polar_radius_of_gyration: float,
+    length: float,
+) -> float:
+    """Forca axial de flambagem elastica por torcao em relacao ao eixo longitudinal.
+
+    NBR 8800:2024, 5.3.5.1-c): ``Nez = (1/r0^2)*[pi^2*E*Cw/Lz^2 + G*J]``.
+    Valido apenas para secoes com dupla simetria ou simetricas em
+    relacao a um ponto — ver :func:`polar_radius_of_gyration` e a
+    ATENCAO no docstring do modulo.
+
+    Parametros
+    ----------
+    elastic_modulus:
+        Modulo de elasticidade do aco, ``E`` (MPa) — tipicamente
+        ``material.E``.
+    shear_modulus:
+        Modulo de elasticidade transversal do aco, ``G`` (MPa) —
+        tipicamente ``material.G``.
+    warping_constant:
+        Constante de empenamento da secao, ``Cw`` (mm^6) — tipicamente
+        ``section.Cw`` (que e opcional/``None`` em ``Section``; o
+        chamador deve resolver esse ``None`` antes de chegar aqui,
+        pois esta funcao exige um valor concreto). ``Cw=0`` e valido
+        para secoes fechadas/tubulares (sem empenamento).
+    torsion_constant:
+        Constante de torcao de Saint-Venant da secao, ``J`` (mm^4) —
+        tipicamente ``section.J``.
+    polar_radius_of_gyration:
+        Raio de giracao polar em relacao ao centro de cisalhamento,
+        ``r0`` (mm) — ver :func:`polar_radius_of_gyration`.
+    length:
+        Comprimento destravado associado a torcao, ``Lz`` (mm).
+    """
+    if not is_positive_finite(elastic_modulus):
+        raise ValueError(
+            f"torsional_buckling_force: elastic_modulus deve ser finito e positivo, "
+            f"recebido {elastic_modulus!r}."
+        )
+    if not is_positive_finite(shear_modulus):
+        raise ValueError(
+            f"torsional_buckling_force: shear_modulus deve ser finito e positivo, "
+            f"recebido {shear_modulus!r}."
+        )
+    if not math.isfinite(warping_constant) or warping_constant < 0:
+        # ">= 0" (nao "> 0"): Cw=0 e fisicamente valido para secoes
+        # fechadas/tubulares (mesmo raciocinio de Section.Cw).
+        raise ValueError(
+            f"torsional_buckling_force: warping_constant deve ser finito e "
+            f"nao-negativo, recebido {warping_constant!r}."
+        )
+    if not is_positive_finite(torsion_constant):
+        raise ValueError(
+            f"torsional_buckling_force: torsion_constant deve ser finito e positivo, "
+            f"recebido {torsion_constant!r}."
+        )
+    if not is_positive_finite(polar_radius_of_gyration):
+        raise ValueError(
+            f"torsional_buckling_force: polar_radius_of_gyration deve ser finito e "
+            f"positivo, recebido {polar_radius_of_gyration!r}."
+        )
+    if not is_positive_finite(length):
+        raise ValueError(
+            f"torsional_buckling_force: length deve ser finito e positivo, "
+            f"recebido {length!r}."
+        )
+    return (1.0 / polar_radius_of_gyration**2) * (
+        math.pi**2 * elastic_modulus * warping_constant / length**2
+        + shear_modulus * torsion_constant
+    )
 
 
 def effective_area_without_local_buckling(gross_area: float) -> float:
@@ -267,8 +379,8 @@ def check_compression_member(
         ``material.fy``.
     elastic_buckling_force:
         Forca axial de flambagem, ``Ne`` (N) — ver
-        :func:`flexural_buckling_force` e a ATENCAO de seguranca no
-        docstring do modulo.
+        :func:`flexural_buckling_force`, :func:`torsional_buckling_force`
+        e a ATENCAO de seguranca no docstring do modulo.
     resistance_factors:
         Coeficientes de ponderacao da resistencia (NBR 8800:2024,
         4.9.2, Tabela 3) — usa apenas ``gamma_a1`` (5.3.2 e um

@@ -77,13 +77,17 @@ Rastreabilidade completa de cada regra em
   comprimidas (NBR 8800:2024, 5.3.1/5.3.2/5.3.3/5.3.5.1): força axial
   resistente de cálculo (`χ·Aef·fy/γa1`), com o fator de redução χ
   (curva de flambagem) e a força axial de flambagem elástica por
-  flexão em torno de cada eixo principal; validado em VAL-0007. **⚠️
-  Limitação de segurança**: só calcula flambagem por FLEXÃO — torção e
-  flexo-torção (relevantes para seções abertas de parede fina, ex.:
-  cantoneiras) não são calculadas nesta fase (falta a constante de
-  empenamento `Cw` em `Section`) — ver RULE-ID `NBR8800-COMP-005` em
-  `docs/normative/NBR8800-RULES.md` antes de usar em seções onde esses
-  modos podem governar;
+  flexão (`Nex`/`Ney`) **e por torção** (`Nez`, via
+  `torsional_buckling_force`/`polar_radius_of_gyration`) em torno de
+  cada eixo principal, para seções com dupla simetria ou simétricas em
+  relação a um ponto; validado em VAL-0007/VAL-0008 (o Caso 2 de
+  VAL-0008 demonstra numericamente uma redução de ~40% em `Nc,Rd` ao
+  incluir `Nez` num cenário onde a torção governa). **⚠️ Limitação de
+  segurança remanescente**: seções monossimétricas (perfis U/C, T) ou
+  assimétricas (cantoneiras de abas desiguais) precisam da força de
+  flambagem por flexo-torção (`Neyz`, não implementada) em vez de
+  `min(Nex, Ney, Nez)` — ver RULE-ID `NBR8800-COMP-005` em
+  `docs/normative/NBR8800-RULES.md` antes de usar nessas seções;
 - `steel_resistance_factors` — coeficientes de ponderação da
   resistência do aço estrutural (γa1/γa2) por classe de combinação de
   ações (NBR 8800:2024, 4.9.2, Tabela 3).
@@ -92,8 +96,9 @@ Rastreabilidade completa de cada regra em
 área líquida em tração (`Ct`, depende de modelagem de furos/soldas/
 parafusos ainda não implementada), chapas ligadas por pino, barras
 rosqueadas, limitação do índice de esbeltez, área efetiva reduzida por
-flambagem local em compressão, flambagem por torção/flexo-torção,
-cantoneiras simples, barras compostas, e qualquer verificação além de
+flambagem local em compressão, flambagem por flexo-torção em seções
+monossimétricas/assimétricas, cantoneiras simples, barras compostas, e
+qualquer verificação além de
 tração/compressão (flexão, cisalhamento, combinação de esforços,
 ligações) — ver `docs/normative/NBR8800-RULES.md` para a lista
 completa do que foi conscientemente adiado.

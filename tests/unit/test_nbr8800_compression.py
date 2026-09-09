@@ -1,6 +1,6 @@
 """Testes unitarios de openstruct.normative.nbr8800.compression.
 
-Ver docs/normative/NBR8800-RULES.md, RULE-IDs NBR8800-COMP-001 a 005.
+Ver docs/normative/NBR8800-RULES.md, RULE-IDs NBR8800-COMP-001 a 007.
 """
 
 from __future__ import annotations
@@ -14,8 +14,10 @@ from openstruct.normative.nbr8800.compression import (
     check_compression_member,
     effective_area_without_local_buckling,
     flexural_buckling_force,
+    polar_radius_of_gyration,
     reduction_factor,
     slenderness_parameter,
+    torsional_buckling_force,
 )
 from openstruct.normative.nbr8800.resistance_factors import (
     LoadCombinationClass,
@@ -59,6 +61,101 @@ def test_flexural_buckling_force_rejects_invalid_moment_of_inertia(value: float)
 def test_flexural_buckling_force_rejects_invalid_length(value: float) -> None:
     with pytest.raises(ValueError):
         flexural_buckling_force(200_000.0, 1000.0, value)
+
+
+# -- polar_radius_of_gyration ---------------------------------------------------
+
+
+def test_polar_radius_of_gyration_matches_formula() -> None:
+    ry, rz = 37.6, 117.5
+    expected = math.sqrt(ry**2 + rz**2)
+    assert polar_radius_of_gyration(ry, rz) == pytest.approx(expected)
+
+
+def test_polar_radius_of_gyration_symmetric_in_arguments() -> None:
+    # r0 = sqrt(ry^2+rz^2) e simetrico -> ordem dos argumentos nao importa.
+    assert polar_radius_of_gyration(37.6, 117.5) == pytest.approx(
+        polar_radius_of_gyration(117.5, 37.6)
+    )
+
+
+def test_polar_radius_of_gyration_equal_axes() -> None:
+    # Secao com rx=ry (ex.: secao quadrada) -> r0 = r*sqrt(2).
+    assert polar_radius_of_gyration(50.0, 50.0) == pytest.approx(50.0 * math.sqrt(2))
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_polar_radius_of_gyration_rejects_invalid_ry(value: float) -> None:
+    with pytest.raises(ValueError):
+        polar_radius_of_gyration(value, 100.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_polar_radius_of_gyration_rejects_invalid_rz(value: float) -> None:
+    with pytest.raises(ValueError):
+        polar_radius_of_gyration(100.0, value)
+
+
+# -- torsional_buckling_force ----------------------------------------------------
+
+
+def test_torsional_buckling_force_matches_formula() -> None:
+    e, g, cw, j, r0, length = 200_000.0, 77_000.0, 1.2e9, 52.8e3, 123.37, 4000.0
+    expected = (1.0 / r0**2) * (math.pi**2 * e * cw / length**2 + g * j)
+    assert torsional_buckling_force(e, g, cw, j, r0, length) == pytest.approx(expected)
+
+
+def test_torsional_buckling_force_accepts_zero_warping_constant() -> None:
+    # Cw=0 e valido (secoes fechadas/tubulares, sem empenamento) -> Nez
+    # se reduz ao termo de Saint-Venant puro: Nez = G*J/r0^2.
+    e, g, j, r0, length = 200_000.0, 77_000.0, 52.8e3, 123.37, 4000.0
+    expected = g * j / r0**2
+    assert torsional_buckling_force(e, g, 0.0, j, r0, length) == pytest.approx(expected)
+
+
+def test_torsional_buckling_force_increases_with_warping_constant() -> None:
+    e, g, j, r0, length = 200_000.0, 77_000.0, 52.8e3, 123.37, 4000.0
+    low_cw = torsional_buckling_force(e, g, 1e8, j, r0, length)
+    high_cw = torsional_buckling_force(e, g, 1e10, j, r0, length)
+    assert high_cw > low_cw
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_elastic_modulus(value: float) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(value, 77_000.0, 1e9, 1000.0, 100.0, 1000.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_shear_modulus(value: float) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(200_000.0, value, 1e9, 1000.0, 100.0, 1000.0)
+
+
+@pytest.mark.parametrize("value", [-1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_warping_constant(value: float) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(200_000.0, 77_000.0, value, 1000.0, 100.0, 1000.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_torsion_constant(value: float) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(200_000.0, 77_000.0, 1e9, value, 100.0, 1000.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_polar_radius_of_gyration(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(200_000.0, 77_000.0, 1e9, 1000.0, value, 1000.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_torsional_buckling_force_rejects_invalid_length(value: float) -> None:
+    with pytest.raises(ValueError):
+        torsional_buckling_force(200_000.0, 77_000.0, 1e9, 1000.0, 100.0, value)
 
 
 # -- effective_area_without_local_buckling -------------------------------------

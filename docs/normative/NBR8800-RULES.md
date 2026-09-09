@@ -135,24 +135,51 @@ glifo/fonte — ver nota sobre `Ct` abaixo).
   flambagem por flexão em relação ao eixo central de inércia x [...]:
   Nex = π²EIx/Lx²" (e analogamente para o eixo y, `Ney`).
 - **DESCRIPTION:** Força axial de flambagem elástica por flexão em
-  torno de um eixo principal de inércia. **LIMITAÇÃO DE SEGURANÇA
-  REGISTRADA**: 5.3.5.1 exige `Ne = min(Nex, Ney, Nez)`, onde `Nez`
-  (flambagem por torção, caso c) não é implementado nesta fase — a
-  fórmula em si (que usa `Cw`, `J`, `G` e o raio de giração polar `r0`)
-  ainda não foi escrita/validada, ainda que `Section` já exponha `Cw`
-  (opcional) desde a adição de `radius_of_gyration_y/z` (ver commit
-  subsequente a este). Seções monossimétricas/assimétricas
-  (5.3.5.2/5.3.5.3, flexo-torção) também não são implementadas. Usar
-  apenas `min(Nex, Ney)` como `Ne`
-  é seguro somente quando torção/flexo-torção não governam (seções
-  fechadas, ou I/H com dupla simetria e travamento lateral adequado);
-  para seções abertas de parede fina onde esses modos podem governar,
-  o chamador deve calcular `Nez`/`Neyz` externamente e incluir no
-  mínimo antes de usar `check_compression_member` — ver ATENÇÃO na
-  docstring do módulo `compression.py`.
+  torno de um eixo principal de inércia. **LIMITAÇÃO DE SEGURANÇA —
+  STATUS ATUALIZADO**: 5.3.5.1 exige `Ne = min(Nex, Ney, Nez)`. `Nez`
+  (flambagem por torção, caso c) **agora está implementado** — ver
+  `NBR8800-COMP-006`/`NBR8800-COMP-007` abaixo — completando `Ne` para
+  seções com dupla simetria ou simétricas em relação a um ponto. A
+  parte da limitação que **continua valendo**: seções monossimétricas/
+  assimétricas (5.3.5.2/5.3.5.3, flexo-torção `Neyz` ou equação
+  cúbica) ainda não são implementadas — para essas, `min(Nex, Ney,
+  Nez)` NÃO é a fórmula correta (ver ATENÇÃO na docstring do módulo
+  `compression.py`), e usá-la seria não conservador.
 - **IMPLEMENTATION:**
   `openstruct.normative.nbr8800.compression.flexural_buckling_force`.
 - **TEST:** `tests/unit/test_nbr8800_compression.py`.
+
+## RULE-ID: NBR8800-COMP-006
+
+- **SOURCE:** NBR 8800:2024, 5.3.5.1, caso c), página 48: "para
+  flambagem por torção em relação ao eixo longitudinal z (que passa
+  pelo centro de cisalhamento): Nez = (1/r0²)[π²ECw/Lz² + GJ]".
+- **DESCRIPTION:** Força axial de flambagem elástica por torção em
+  relação ao eixo longitudinal da barra. Válida apenas para seções com
+  dupla simetria ou simétricas em relação a um ponto (`x0=y0=0` em
+  `r0`, ver `NBR8800-COMP-007`) — ver ATENÇÃO de segurança na
+  docstring do módulo `compression.py` sobre seções monossimétricas/
+  assimétricas.
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.torsional_buckling_force`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`,
+  `tests/validation/test_nbr8800_torsional_buckling_benchmark.py`
+  (VAL-0008).
+
+## RULE-ID: NBR8800-COMP-007
+
+- **SOURCE:** NBR 8800:2024, 5.3.5.1, página 49: "r0 é o raio de
+  giração polar da seção bruta em relação ao centro de cisalhamento
+  [...]: r0 = sqrt(rx²+ry²+x0²+y0²) [...] Para seções com dupla
+  simetria ou simétrica em relação a um ponto, x0=y0=0."
+- **DESCRIPTION:** Raio de giração polar em relação ao centro de
+  cisalhamento, caso particular `x0=y0=0`: `r0 = sqrt(ry²+rz²)`. Usado
+  como entrada de `Nez` (`NBR8800-COMP-006`).
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.compression.polar_radius_of_gyration`.
+- **TEST:** `tests/unit/test_nbr8800_compression.py`,
+  `tests/validation/test_nbr8800_torsional_buckling_benchmark.py`
+  (VAL-0008).
 
 ## Fora do escopo desta fase (não implementado)
 
@@ -194,12 +221,14 @@ adiado, não esquecido:
   `Section` não expressa (armazena apenas propriedades agregadas da
   seção — `A`, `Iy`, `Iz`, etc. — não a geometria detalhada de cada
   elemento).
-- **5.3.5.1-c)/5.3.5.2/5.3.5.3** (página 48-49): flambagem por torção
-  e flexo-torção. `Section.Cw` (opcional, `None` por padrão) já existe
-  no domínio — a fórmula de `Nez`/`Neyz` em si ainda não está
-  implementada (a LIMITAÇÃO DE SEGURANÇA registrada em
-  NBR8800-COMP-005 continua valendo até essa fórmula ser escrita e
-  validada).
+- **5.3.5.2/5.3.5.3** (página 49): flambagem por flexo-torção em seções
+  monossimétricas (`Neyz`) e a equação cúbica de seções assimétricas.
+  `Nez` (5.3.5.1-c) em si já está implementado (`NBR8800-COMP-006`) —
+  o que falta é a combinação não linear de `Ney`/`Nez` com a
+  excentricidade do centro de cisalhamento (`x0`/`y0` não nulos nesses
+  casos), que `polar_radius_of_gyration` desta fase não calcula (só o
+  caso `x0=y0=0`). A LIMITAÇÃO DE SEGURANÇA registrada em
+  NBR8800-COMP-005 continua valendo para esses dois casos.
 - **5.3.5.4** (página 50-51): comprimento destravado equivalente para
   cantoneiras simples conectadas por uma aba.
 - **5.3.6** (página 51-52): requisitos específicos para barras
