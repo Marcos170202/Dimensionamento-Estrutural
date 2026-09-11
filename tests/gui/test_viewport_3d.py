@@ -110,9 +110,12 @@ def test_render_model_with_load_case_draws_arrow(qapp: object) -> None:
     model = _cantilever_model()
     load_case = LoadCase("P", (NodalLoad(2, fz=-10_000.0),))
     viewport = Viewport3D(ModelTab())
-    n_actors_before = len(Viewport3D(ModelTab()).plotter.renderer.actors)
-    viewport.render_model(model, load_case)
-    assert len(viewport.plotter.renderer.actors) > n_actors_before
+
+    viewport.render_model(model)  # sem load_case: estrutura + nos + apoios, sem seta
+    n_actors_without_load = len(viewport.plotter.renderer.actors)
+
+    viewport.render_model(model, load_case)  # com load_case: mesma cena + seta de carga
+    assert len(viewport.plotter.renderer.actors) > n_actors_without_load
 
 
 def test_render_model_load_with_zero_force_is_skipped(qapp: object) -> None:
@@ -213,6 +216,46 @@ def test_refresh_button_shows_generic_exception_not_wrapped_as_model_input_error
 
     assert "Erro" in viewport.status_label.text()
     assert "id=1" in viewport.status_label.text()
+
+
+def test_refresh_button_refuses_stale_deformed_shape_after_table_edit(qapp: object) -> None:
+    """Tabelas editadas apos "Rodar Analise" invalidam a deformada
+    cacheada — o viewport deve recusar sobrepor uma deformada que nao
+    corresponde mais ao modelo/cargas atuais (achado do code-review)."""
+    model_tab = ModelTab()
+    _fill_cantilever_beam(model_tab)
+    viewport = Viewport3D(model_tab)
+
+    model_tab._on_run_analysis()
+    assert model_tab.last_result is not None
+    assert not model_tab.is_last_result_stale()
+
+    # edita uma tabela depois da analise -> last_result fica desatualizado
+    model_tab.loads_table.add_row(["1", "1000", "0", "0", "0", "0", "0"])
+    assert model_tab.is_last_result_stale()
+
+    viewport.show_deformed_checkbox.setChecked(True)
+    viewport._on_refresh()
+
+    assert "NÃO desenhada" in viewport.status_label.text()
+    assert "Rodar Análise" in viewport.status_label.text()
+
+
+def test_refresh_button_shows_deformed_when_checkbox_off_even_if_stale(qapp: object) -> None:
+    """Com o checkbox desmarcado, uma deformada desatualizada nao impede
+    a atualizacao normal (so a sobreposicao da deformada e recusada)."""
+    model_tab = ModelTab()
+    _fill_cantilever_beam(model_tab)
+    viewport = Viewport3D(model_tab)
+
+    model_tab._on_run_analysis()
+    model_tab.loads_table.add_row(["1", "1000", "0", "0", "0", "0", "0"])
+    assert model_tab.is_last_result_stale()
+
+    assert not viewport.show_deformed_checkbox.isChecked()
+    viewport._on_refresh()
+
+    assert viewport.status_label.text() == ""
 
 
 def test_refresh_button_after_analysis_can_show_deformed(qapp: object) -> None:

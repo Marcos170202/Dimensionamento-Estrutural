@@ -36,7 +36,7 @@ from pyvistaqt import QtInteractor
 from openstruct.domain import AnalysisModel, LoadCase, NodalLoad
 from openstruct.results import AnalysisResult
 
-from .model_tab import ModelInputError, ModelTab
+from .model_tab import ModelTab, _run_or_report
 
 _STRUCTURE_COLOR = "steelblue"
 _NODE_COLOR = "steelblue"
@@ -117,15 +117,31 @@ class Viewport3D(QWidget):
     # -- atualizacao a partir da aba "Modelo e Analise" --------------------------
 
     def _on_refresh(self) -> None:
-        try:
-            model, load_case = self.model_tab.build_model_and_load_case()
-        except ModelInputError as exc:
-            self.show_error(str(exc))
+        built = _run_or_report(
+            self.model_tab.build_model_and_load_case,
+            on_model_input_error=self.show_error,
+            on_other_error=self.show_error,
+        )
+        if built is None:
             return
-        except Exception as exc:  # noqa: BLE001 - qualquer falha de montagem vira mensagem
-            self.show_error(str(exc))
+        model, load_case = built
+
+        result = self.model_tab.last_result
+        wants_deformed = self.show_deformed_checkbox.isChecked()
+        if wants_deformed and result is not None and self.model_tab.is_last_result_stale():
+            # As tabelas mudaram desde a ultima analise bem-sucedida — a
+            # deformada cacheada NAO corresponde mais ao modelo/cargas
+            # atuais. Melhor recusar a sobreposicao (mostrar so a estrutura
+            # nao-deformada) do que desenhar uma deformada enganosa numa
+            # ferramenta de engenharia estrutural.
+            self.render_model(model, load_case, None)
+            self.status_label.setText(
+                "⚠ Forma deformada NÃO desenhada: as tabelas mudaram desde a"
+                ' última execução de "Rodar Análise" — rode a análise'
+                " novamente para uma deformada atualizada."
+            )
             return
-        self.render_model(model, load_case, self.model_tab.last_result)
+        self.render_model(model, load_case, result)
 
     # -- renderizacao --------------------------------------------------------------
 

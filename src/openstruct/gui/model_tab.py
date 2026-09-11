@@ -10,6 +10,8 @@ entre as tabelas da GUI e essas chamadas.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -59,6 +61,31 @@ _TRUE_VALUES = {"1", "true", "verdadeiro", "sim", "s", "x"}
 
 class ModelInputError(ValueError):
     """Erro de entrada do usuario nas tabelas do modelo (mensagem ja pronta para exibir)."""
+
+
+def _run_or_report[T](
+    action: Callable[[], T],
+    *,
+    on_model_input_error: Callable[[str], None],
+    on_other_error: Callable[[str], None],
+) -> T | None:
+    """Executa ``action``; se levantar ``ModelInputError`` ou qualquer
+    outra excecao, reporta a mensagem via o callback correspondente e
+    devolve ``None`` em vez de propagar.
+
+    Compartilhado por ``ModelTab._on_run_analysis`` e
+    ``Viewport3D._on_refresh`` (``openstruct.gui.viewport_3d``) — os
+    dois precisam montar o modelo a partir das tabelas e mostrar um
+    erro sem crashar; so decidem COMO exibir esse erro (dialogo modal
+    vs rotulo de status), nao como classifica-lo.
+    """
+    try:
+        return action()
+    except ModelInputError as exc:
+        on_model_input_error(str(exc))
+    except Exception as exc:  # noqa: BLE001 - qualquer falha vira mensagem para o chamador
+        on_other_error(str(exc))
+    return None
 
 
 def _parse_float(text: str, *, field: str, table: str, row: int) -> float:
@@ -151,8 +178,13 @@ class ModelTab(QWidget):
         # Cache da ultima analise bem-sucedida, consumido pela aba
         # "Visualizacao 3D" (viewport_3d.Viewport3D) para sobrepor a forma
         # deformada sem precisar re-executar a analise nem duplicar
-        # nenhuma logica de montagem/solucao aqui.
+        # nenhuma logica de montagem/solucao aqui. `_last_tables_snapshot`
+        # guarda o estado das tabelas NO MOMENTO dessa analise — usado por
+        # `is_last_result_stale()` para o viewport recusar sobrepor uma
+        # deformada que nao corresponde mais ao modelo/cargas atuais
+        # (tabelas editadas apos "Rodar Analise" sem rodar de novo).
         self.last_result: AnalysisResult | None = None
+        self._last_tables_snapshot: tuple[object, ...] = ()
 
     @staticmethod
     def _make_result_table(columns: list[str]) -> QTableWidget:
@@ -303,17 +335,48 @@ class ModelTab(QWidget):
 
     # -- execucao e exibicao de resultados --------------------------------------
 
+    def _tables_snapshot(self) -> tuple[object, ...]:
+        """Retrato do estado bruto de todas as tabelas + checkbox de peso
+        proprio — usado para detectar se ``last_result`` ficou desatualizado
+        em relacao ao que esta nas tabelas agora (ver ``is_last_result_stale``)."""
+        return (
+            self.nodes_table.all_rows(),
+            self.materials_table.all_rows(),
+            self.sections_table.all_rows(),
+            self.elements_table.all_rows(),
+            self.supports_table.all_rows(),
+            self.loads_table.all_rows(),
+            self.self_weight_checkbox.isChecked(),
+        )
+
+    def is_last_result_stale(self) -> bool:
+        """``True`` se ``last_result`` for ``None`` ou se qualquer tabela
+        (ou o checkbox de peso proprio) tiver mudado desde a ultima
+        execucao bem-sucedida de ``Rodar Analise`` — consumido pela aba
+        "Visualizacao 3D" para nao sobrepor uma forma deformada que nao
+        corresponde mais ao modelo/cargas atuais."""
+        return self.last_result is None or self._tables_snapshot() != self._last_tables_snapshot
+
+    def _run_full_analysis(self) -> AnalysisResult:
+        model, load_case = self.build_model_and_load_case()
+        return run_analysis(model, load_case)
+
+    def _show_model_input_error(self, message: str) -> None:
+        QMessageBox.critical(self, "Erro nos dados do modelo", message)
+
+    def _show_analysis_error(self, message: str) -> None:
+        QMessageBox.critical(self, "Erro ao rodar a análise", message)
+
     def _on_run_analysis(self) -> None:
-        try:
-            model, load_case = self.build_model_and_load_case()
-            result = run_analysis(model, load_case)
-        except ModelInputError as exc:
-            QMessageBox.critical(self, "Erro nos dados do modelo", str(exc))
-            return
-        except Exception as exc:  # noqa: BLE001 - qualquer falha de analise vira dialogo de erro
-            QMessageBox.critical(self, "Erro ao rodar a análise", str(exc))
+        result = _run_or_report(
+            self._run_full_analysis,
+            on_model_input_error=self._show_model_input_error,
+            on_other_error=self._show_analysis_error,
+        )
+        if result is None:
             return
         self.last_result = result
+        self._last_tables_snapshot = self._tables_snapshot()
         self._show_results(result)
 
     def _show_results(self, result: AnalysisResult) -> None:
