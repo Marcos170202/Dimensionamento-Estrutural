@@ -1,0 +1,81 @@
+name: Build GUI .exe (Windows)
+
+# Roda num runner Windows de verdade — um .exe nao pode ser
+# cross-compilado de forma confiavel a partir de Linux/macOS com
+# PyInstaller (ver docs/build/EMPACOTAMENTO.md).
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/openstruct/**"
+      - "packaging/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-gui-exe.yml"
+  workflow_dispatch: {}
+
+# Necessario para o passo "Publica/atualiza o Release" (cria/atualiza a
+# tag e o Release openstruct3d-gui-latest) — sem isto o GITHUB_TOKEN e
+# somente-leitura por padrao em alguns repositorios.
+permissions:
+  contents: write
+
+# Serializa execucoes: apaga+recria o mesmo Release/tag de link fixo
+# (openstruct3d-gui-latest), entao duas execucoes concorrentes (dois
+# pushes em main proximos um do outro) poderiam se intercalar e deixar
+# o link servindo um binario errado ou fazer uma delas falhar com
+# "release already exists". `cancel-in-progress: false` faz a execucao
+# mais nova ESPERAR a mais antiga terminar (fila), em vez de cancela-la
+# ou rodar em paralelo — o link sempre acaba refletindo o push mais
+# recente, sem corrida.
+concurrency:
+  group: build-gui-exe-release
+  cancel-in-progress: false
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+
+      - name: Instala o projeto (extras gui + build)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui,build]"
+
+      - name: Gera o executavel (openstruct3d-gui.exe)
+        run: pyinstaller packaging/openstruct3d-gui.spec
+
+      - name: Publica o artifact (backup/depuracao)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openstruct3d-gui-windows
+          path: dist/openstruct3d-gui.exe
+          if-no-files-found: error
+
+      - name: Publica/atualiza o Release "openstruct3d-gui-latest" (link fixo de download)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -e
+          VERSION=$(python -c "import openstruct; print(openstruct.__version__)")
+          # So apaga se de fato existir — um `|| true` cego aqui esconderia
+          # erros reais (rate limit, token sem escopo) atras de um "release
+          # already exists" confuso no `gh release create` logo abaixo.
+          if gh release view openstruct3d-gui-latest >/dev/null 2>&1; then
+            gh release delete openstruct3d-gui-latest --yes --cleanup-tag
+          fi
+          # `--target` cria a tag no commit certo — sem precisar de
+          # `git tag`/`git push` manuais (o `gh` cuida disso sozinho).
+          gh release create openstruct3d-gui-latest \
+            dist/openstruct3d-gui.exe \
+            --title "OpenStruct 3D GUI (Windows) — build automatico" \
+            --notes "Executavel Windows gerado automaticamente a partir do commit ${{ github.sha }} (versao $VERSION). Baixe openstruct3d-gui.exe, salve em qualquer pasta e execute — nao precisa instalar Python nem dependencias. Este release e SUBSTITUIDO a cada push relevante em main (sempre a mesma URL); a data do release mostra quando foi gerado. Sem viewport 3D nesta fase — ver docs/decisions/ADR-003-gui-arquitetura.md." \
+            --target "${{ github.sha }}" \
+            --prerelease
