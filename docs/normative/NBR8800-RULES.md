@@ -508,6 +508,50 @@ Aplica-se igualmente a `check_flexural_resistance_major_axis`.
 - **TEST:** `tests/unit/test_nbr8800_flexure.py`,
   `tests/validation/test_nbr8800_flexure_flm_fla_benchmark.py` (VAL-0012).
 
+## RULE-ID: NBR8800-COMB-001
+
+- **SOURCE:** NBR 8800:2024, 5.5.1.2, página 60: "Para a atuação
+  simultânea da força axial de tração ou de compressão e de momentos
+  fletores, deve ser atendida a limitação fornecida pelas seguintes
+  equações de interação: a) para NSd/NRd ≥ 0,2: NSd/NRd + (8/9)*
+  (Mx,Sd/Mx,Rd + My,Sd/My,Rd) ≤ 1,0; b) para NSd/NRd < 0,2: NSd/(2*NRd)
+  + (Mx,Sd/Mx,Rd + My,Sd/My,Rd) ≤ 1,0."
+- **DESCRIPTION:** Interação entre força axial (tração OU compressão,
+  a que for aplicável) e momento fletor biaxial, para barras SEM
+  torção. Duas equações conforme a razão `Nsd/Nrd` seja maior/igual ou
+  menor que 0,2. `Nrd` deve ser o mesmo tipo de esforço de `Nsd`
+  (`Nt,Rd` de 5.2 ou `Nc,Rd` de 5.3, conforme aplicável); `Mx,Rd`/
+  `My,Rd` determinados conforme 5.4.2 (ver `NBR8800-FLEX-008` para o
+  eixo de maior momento de inércia — o eixo de menor momento de
+  inércia não está implementado, ver `NBR8800-FLEX-004`/docstring do
+  módulo `flexure`).
+- **IMPLEMENTATION:**
+  `openstruct.normative.nbr8800.combined_forces.axial_bending_interaction_ratio`,
+  `openstruct.normative.nbr8800.combined_forces.check_axial_and_bending_interaction`.
+- **TEST:** `tests/unit/test_nbr8800_combined_forces.py`,
+  `tests/validation/test_nbr8800_combined_forces_benchmark.py` (VAL-0013).
+
+## RULE-ID: NBR8800-COMB-002
+
+- **SOURCE:** NBR 8800:2024, 5.5.1.3, página 61: "Para os casos de
+  força cortante atuante na direção de um dos eixos centrais de
+  inércia, a verificação da barra a esse esforço deve ser feita
+  conforme 5.4.3."
+- **DESCRIPTION:** Quando a força cortante atua em um único eixo
+  central de inércia, NÃO há equação de interação adicional — basta
+  verificar `Vsd ≤ Vrd` isoladamente conforme 5.4.3
+  (`NBR8800-SHEAR-001` a `004`). Não há nenhuma função nova a
+  implementar para este caso; documentado aqui apenas para
+  rastreabilidade (registrar que a cláusula foi lida e conscientemente
+  não gerou código, por já estar coberta). O caso de força cortante
+  atuando SIMULTANEAMENTE nos dois eixos remete a 5.5.2.3-b)/d)
+  (seções tubulares combinadas com torção) — fora do escopo, ver
+  abaixo.
+- **IMPLEMENTATION:** N/A (remete diretamente a
+  `openstruct.normative.nbr8800.shear.check_shear_major_axis`, já
+  implementado).
+- **TEST:** N/A.
+
 ## Fora do escopo desta fase (não implementado)
 
 Registrado aqui para rastreabilidade do que foi conscientemente
@@ -590,7 +634,11 @@ adiado, não esquecido:
   `NBR8800-SHEAR-004`).
 - **5.4.4/5.4.5**: chapas de reforço/lamelas e requisitos para seções
   soldadas.
-- **5.5**: combinação de momento fletor, força cortante, força axial e
-  momento de torção — próximo incremento desta mesma fase normativa,
-  agora que `Mrd` completo (FLT+FLM+FLA) está disponível para o caso
-  mais comum (`NBR8800-FLEX-008`).
+- **5.5.2** (páginas 61-62): seções tubulares circulares e retangulares
+  submetidas a momento de torção, força axial, momentos fletores e
+  força cortante — inclui `Trd` para torção pura (5.5.2.1/5.5.2.1.2/
+  5.5.2.1.3) e a equação de interação com torção (5.5.2.2). Requer
+  duas frentes ainda não abertas: modelagem de seções tubulares
+  separadas de I/H/U no domínio geométrico (`Section`) e verificação
+  de torção pura (`Trd`), nunca implementada em nenhuma fase anterior
+  deste pacote.

@@ -21,15 +21,23 @@ fletor resistente de calculo COMPLETO (FLT+FLM+FLA) de secoes I/H com
 dois eixos de simetria e secoes U nao sujeitas a momento de torcao,
 fletidas no eixo de maior momento de inercia (5.4.1.3/5.4.2/Anexo D,
 Tabela D.1 primeira linha — ver ATENCAO na docstring de ``flexure``
-sobre vigas de alma esbelta, Anexo E, ainda nao implementado) e os
-coeficientes de ponderacao da resistencia do aco estrutural (4.9.2,
-Tabela 3). Ver docstrings de ``tension``, ``compression``,
-``slenderness``, ``shear``, ``flexure`` e ``resistance_factors`` para
-os limites exatos do escopo.
+sobre vigas de alma esbelta, Anexo E, ainda nao implementado), a
+interacao entre forca axial e momento fletor biaxial para barras sem
+torcao (5.5.1.2 — ver docstring de ``combined_forces`` para o restante
+de 5.5, ainda fora do escopo) e os coeficientes de ponderacao da
+resistencia do aco estrutural (4.9.2, Tabela 3). Ver docstrings de
+``tension``, ``compression``, ``slenderness``, ``shear``, ``flexure``,
+``combined_forces`` e ``resistance_factors`` para os limites exatos do
+escopo.
 """
 
 from __future__ import annotations
 
+from .combined_forces import (
+    CombinedForcesCheckResult,
+    axial_bending_interaction_ratio,
+    check_axial_and_bending_interaction,
+)
 from .compression import (
     CompressionCheckResult,
     check_compression_member,
@@ -83,6 +91,7 @@ from .tension import (
 __all__ = [
     "COMPRESSION_SLENDERNESS_LIMIT",
     "TENSION_SLENDERNESS_LIMIT",
+    "CombinedForcesCheckResult",
     "CompressionCheckResult",
     "FlexureCheckResult",
     "LoadCombinationClass",
@@ -90,6 +99,8 @@ __all__ = [
     "SlendernessCheckResult",
     "SteelResistanceFactors",
     "TensionCheckResult",
+    "axial_bending_interaction_ratio",
+    "check_axial_and_bending_interaction",
     "check_compression_member",
     "check_compression_slenderness",
     "check_flexural_resistance_major_axis",

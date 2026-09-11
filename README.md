@@ -121,7 +121,14 @@ Rastreabilidade completa de cada regra em
   limitação de segurança antes registrada em `NBR8800-FLEX-004`** para
   este tipo de seção/eixo — use esta função (não
   `check_lateral_torsional_buckling` isoladamente) para o `Mrd`
-  completo de 5.4.2.1.
+  completo de 5.4.2.1;
+- `check_axial_and_bending_interaction` — interação entre força axial
+  (tração ou compressão, a que for aplicável) e momento fletor biaxial
+  para barras SEM torção (NBR 8800:2024, 5.5.1.2): as duas equações de
+  interação (conforme `Nsd/Nrd` maior/igual ou menor que 0,2); validado
+  em VAL-0013. Força cortante em um único eixo (5.5.1.3) não precisa
+  de fórmula adicional — remete diretamente a `check_shear_major_axis`
+  (5.4.3).
 
 **Fora do escopo desta fase**: cálculo do coeficiente de redução da
 área líquida em tração (`Ct`, depende de modelagem de furos/soldas/
@@ -135,8 +142,10 @@ calculado), demais linhas da Tabela D.1 do Anexo D (seções
 monossimétricas, tubulares/caixão, T, cantoneiras duplas, sólidas, e
 flexão no eixo de menor momento de inércia), força cortante resistente
 para seções tubulares/caixão/T/cantoneiras duplas/I-H-U em torno do
-eixo fraco/tubulares circulares (5.4.3.2 a 5.4.3.6), e combinação de
-esforços (5.5) e ligações — ver `docs/normative/NBR8800-RULES.md` para
+eixo fraco/tubulares circulares (5.4.3.2 a 5.4.3.6), seções tubulares
+submetidas a momento de torção combinado com força axial/momentos
+fletores/força cortante (5.5.2, inclui `Trd` de torção pura — nunca
+implementado), e ligações — ver `docs/normative/NBR8800-RULES.md` para
 a lista completa do que foi conscientemente adiado.
 
 ## Convenção de unidades
@@ -229,7 +238,8 @@ src/openstruct/
         ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
         ├── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
         ├── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
-        └── flexure.py               # check_flexural_resistance_major_axis (5.4.1.3/5.4.2/Anexo D — FLT+FLM+FLA)
+        ├── flexure.py               # check_flexural_resistance_major_axis (5.4.1.3/5.4.2/Anexo D — FLT+FLM+FLA)
+        └── combined_forces.py       # check_axial_and_bending_interaction (5.5.1.2 — N+M biaxial)
 
 tests/
 ├── unit/                    # testes unitarios por classe
