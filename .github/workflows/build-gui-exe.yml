@@ -76,6 +76,6 @@ jobs:
           gh release create openstruct3d-gui-latest \
             dist/openstruct3d-gui.exe \
             --title "OpenStruct 3D GUI (Windows) — build automatico" \
-            --notes "Executavel Windows gerado automaticamente a partir do commit ${{ github.sha }} (versao $VERSION). Baixe openstruct3d-gui.exe, salve em qualquer pasta e execute — nao precisa instalar Python nem dependencias. Este release e SUBSTITUIDO a cada push relevante em main (sempre a mesma URL); a data do release mostra quando foi gerado. Sem viewport 3D nesta fase — ver docs/decisions/ADR-003-gui-arquitetura.md." \
+            --notes "Executavel Windows gerado automaticamente a partir do commit ${{ github.sha }} (versao $VERSION). Baixe openstruct3d-gui.exe, salve em qualquer pasta e execute — nao precisa instalar Python nem dependencias. Este release e SUBSTITUIDO a cada push relevante em main (sempre a mesma URL); a data do release mostra quando foi gerado. Escopo e limitacoes atuais da GUI: ver docs/decisions/ (ADR-003 em diante) e README.md." \
             --target "${{ github.sha }}" \
             --prerelease
