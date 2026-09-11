@@ -132,5 +132,9 @@ esta decisao preenche essa lacuna.
   significa que o `.exe` Windows distribuivel ao usuario final
   precisa ser gerado numa maquina/runner Windows — este sandbox (Linux)
   so pode validar o empacotamento gerando e testando um binario ELF
-  Linux equivalente (feito nesta fase), nao o `.exe` em si. Ver
+  Linux equivalente (feito nesta fase), nao o `.exe` em si. Resolvido
+  numa fase seguinte com `.github/workflows/build-gui-exe.yml`
+  (`runs-on: windows-latest`), que gera o `.exe` e publica um GitHub
+  Release de link fixo (`openstruct3d-gui-latest`) a cada atualizacao
+  de `main` — o usuario baixa sempre da mesma URL. Ver
   `docs/build/EMPACOTAMENTO.md`.

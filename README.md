@@ -256,8 +256,17 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m openstruct.gui   # modo offscreen 
 .venv/bin/openstruct3d-gui
 ```
 
-Para gerar um executável desktop (`.exe` no Windows), ver
-`docs/build/EMPACOTAMENTO.md`.
+### 📥 Baixar o `.exe` (Windows) — sem instalar Python
+
+O executável Windows é gerado automaticamente a cada atualização de
+`main` (CI, `windows-latest`) e publicado sempre no mesmo link:
+
+👉 **https://github.com/Marcos170202/dimensionamento-estrutural/releases/tag/openstruct3d-gui-latest**
+
+Baixe `openstruct3d-gui.exe` e execute — nada mais a instalar. Volte a
+esse mesmo link depois de cada atualização do projeto para pegar a
+versão mais recente (o Release é substituído automaticamente, nunca
+muda de URL). Detalhes do mecanismo em `docs/build/EMPACOTAMENTO.md`.
 
 ## Estrutura do projeto
 

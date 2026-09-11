@@ -21,10 +21,25 @@ nos três casos — só muda o sistema operacional onde `pyinstaller
 packaging/openstruct3d-gui.spec` é executado.
 
 Este ambiente de desenvolvimento (sandbox Linux) só pode gerar e
-validar o binário **Linux**. O `.exe` Windows distribuível ao usuário
-final precisa ser gerado separadamente, em uma máquina Windows (local
-ou um runner `windows-latest` do GitHub Actions — ver seção
-"Automatizando no CI" abaixo).
+validar o binário **Linux**. O `.exe` Windows é gerado automaticamente
+por CI (runner `windows-latest`, ver "Build automático (CI)" abaixo) —
+não é necessário rodar o PyInstaller manualmente para obter o `.exe`
+de distribuição.
+
+## 📥 Baixar o `.exe` mais recente
+
+**Link fixo, sempre a versão mais atual gerada a partir de `main`:**
+
+👉 https://github.com/Marcos170202/dimensionamento-estrutural/releases/tag/openstruct3d-gui-latest
+
+Baixe `openstruct3d-gui.exe`, salve em qualquer pasta e execute — não
+precisa instalar Python nem nenhuma dependência. Esse Release é
+**substituído automaticamente** (mesma URL, novo arquivo) a cada push
+em `main` que toque `src/openstruct/**`, `packaging/**` ou
+`pyproject.toml` (ver `.github/workflows/build-gui-exe.yml`) — basta
+voltar a esse link depois de cada atualização para pegar a versão mais
+nova. A data/hora do Release e a nota de descrição mostram de qual
+commit e versão (`openstruct.__version__`) ele foi gerado.
 
 ## Build local
 
@@ -79,15 +94,38 @@ até ser encerrado.
 (cobertos por `dist/`/`build/` no `.gitignore` da raiz) — são
 artefatos de build, gerados sob demanda, não código-fonte.
 
-## Automatizando no CI (não incluído nesta fase)
+## Build automático (CI)
 
-Para gerar o `.exe` Windows automaticamente a cada release, seria
-necessário um job adicional em `.github/workflows/` rodando em
-`runs-on: windows-latest`, com os mesmos dois comandos acima (`pip
-install -e ".[gui,build]"` + `pyinstaller
-packaging/openstruct3d-gui.spec`), publicando `dist/openstruct3d-gui.exe`
-como artefato do workflow (`actions/upload-artifact`) ou anexado a uma
-release do GitHub. Isso fica **fora do escopo desta fase** (o CI atual
-só roda testes/lint/mypy em `ubuntu-latest`) — registrado aqui para
-não ser esquecido quando o projeto precisar de uma distribuição
-oficial do `.exe`.
+`.github/workflows/build-gui-exe.yml` — job `build-windows`, roda em
+`runs-on: windows-latest`, disparado por push em `main` (tocando
+`src/openstruct/**`, `packaging/**` ou `pyproject.toml`) ou
+manualmente (`workflow_dispatch`). Passos:
+
+1. `pip install -e ".[gui,build]"` + `pyinstaller
+   packaging/openstruct3d-gui.spec` (os mesmos comandos do build
+   local acima, só que numa máquina Windows de verdade);
+2. publica `dist/openstruct3d-gui.exe` como artifact do workflow
+   (`actions/upload-artifact`, retenção padrão — útil para depuração
+   de um build específico, mas expira e exige login no GitHub para
+   baixar);
+3. **publica/atualiza um GitHub Release com tag fixa
+   `openstruct3d-gui-latest`** (usa `gh release delete ... || true`
+   seguido de `gh release create`, com a tag recriada em cada execução
+   via `git tag -f` + `push --force`) — esse é o mecanismo pensado
+   para "instalar e ir recebendo atualizações": a URL do Release NUNCA
+   muda, só o arquivo por trás dela. Marcado `--prerelease` (não é uma
+   versão numerada oficial do projeto, é sempre "o build mais recente
+   de `main`").
+
+Requer `permissions: contents: write` no workflow (para o
+`GITHUB_TOKEN` poder criar/apagar releases e mover a tag) — já
+configurado no arquivo.
+
+**Este mecanismo NÃO publica o `.exe` Windows a partir deste sandbox
+Linux** — o download em si continua bloqueado pela política de rede
+deste ambiente (artefatos do Actions são servidos por um redirect para
+armazenamento de blob do Azure, fora da lista de hosts permitidos); é
+o **runner Windows do GitHub Actions** que gera e publica o arquivo
+inteiramente dentro da infraestrutura do GitHub, sem passar pelo
+sandbox — por isso o link de Release funciona para qualquer pessoa com
+acesso ao repositório, independente de onde esta sessão está rodando.
