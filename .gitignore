@@ -7,8 +7,10 @@ __pycache__/
 .ruff_cache/
 htmlcov/
 .coverage
-dist/
-build/
+/dist/
+/build/
+packaging/dist/
+packaging/build/
 *.openstruct
 .idea/
 .vscode/

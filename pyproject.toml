@@ -1,7 +1,7 @@
 [project]
 name = "openstruct3d"
-version = "0.10.0"
-description = "OpenStruct 3D — nucleo de analise estrutural 3D (SOLVER V1 + inicio do NORMATIVE ENGINE)"
+version = "0.11.0"
+description = "OpenStruct 3D — nucleo de analise estrutural 3D + GUI desktop (SOLVER V1 + NORMATIVE ENGINE + GUI V1)"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
@@ -18,6 +18,15 @@ dev = [
     "mypy>=1.10",
     "scipy-stubs>=1.11",
 ]
+gui = [
+    "PySide6>=6.5",
+]
+build = [
+    "pyinstaller>=6.0",
+]
+
+[project.gui-scripts]
+openstruct3d-gui = "openstruct.gui.app:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

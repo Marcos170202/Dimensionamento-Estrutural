@@ -34,15 +34,26 @@ Fases ja implementadas:
   docstring de ``openstruct.normative``) — o nucleo de analise
   permanece agnostico de norma.
 
-GUI, IA, P-Delta, flambagem e o restante do dimensionamento de
-elementos metalicos (demais linhas da Tabela D.1, vigas de alma
-esbelta, secoes tubulares com torcao, ligacoes) permanecem fases
-futuras — ver docs/decisions/ADR-002 e docs/normative/NBR8800-RULES.md
-para o escopo normativo exato ja coberto.
+- GUI DESKTOP V1 (PROGRAM_MASTER secao 2, camada GUI): aplicativo
+  desktop ``openstruct.gui`` (PySide6, SEM viewport 3D nesta fase —
+  ver docs/decisions/ADR-003) com aba de montagem de modelo/execucao
+  de analise e aba de verificacoes NBR 8800, camada fina que so chama
+  as funcoes ja validadas de ``domain``/``results``/``normative``
+  (nenhuma formula reescrita na GUI). Extra opcional ``pip install -e
+  ".[gui]"``; empacotavel como executavel desktop via PyInstaller
+  (``pip install -e ".[build]"``, ver docs/build/EMPACOTAMENTO.md —
+  inclui a limitacao de que o ``.exe`` Windows so pode ser gerado
+  rodando o PyInstaller em uma maquina Windows).
+
+IA, P-Delta, flambagem e o restante do dimensionamento de elementos
+metalicos (demais linhas da Tabela D.1, vigas de alma esbelta, secoes
+tubulares com torcao, ligacoes) e o viewport 3D permanecem fases
+futuras — ver docs/decisions/ADR-002, docs/decisions/ADR-003 e
+docs/normative/NBR8800-RULES.md para o escopo exato ja coberto.
 """
 
 from .results import AnalysisResult, run_analysis
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 __all__ = ["AnalysisResult", "run_analysis"]

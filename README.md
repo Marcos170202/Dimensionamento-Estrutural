@@ -5,7 +5,7 @@ estruturas metalicas em 3D. Ver `AGENTS_MASTER.md` (sistema
 multiagente de desenvolvimento) e `PROGRAM_MASTER.md` (especificacao
 completa do programa) para o escopo integral do projeto.
 
-## Estado atual: SOLVER V1 ("3D FRAME SOLVER V1") + início do NORMATIVE ENGINE
+## Estado atual: SOLVER V1 ("3D FRAME SOLVER V1") + NORMATIVE ENGINE + GUI DESKTOP V1
 
 ### Fase FOUNDATION + CORE STRUCTURAL MODEL (modelo de dominio)
 
@@ -148,6 +148,37 @@ fletores/força cortante (5.5.2, inclui `Trd` de torção pura — nunca
 implementado), e ligações — ver `docs/normative/NBR8800-RULES.md` para
 a lista completa do que foi conscientemente adiado.
 
+### Fase GUI DESKTOP V1
+
+Aplicativo desktop `openstruct.gui` (PySide6), decidido explicitamente
+pelo usuário como **sem viewport 3D** nesta fase — ver
+`docs/decisions/ADR-003-gui-arquitetura.md`. Camada fina sobre
+`domain`/`results`/`normative`: nenhuma fórmula de engenharia é
+duplicada na GUI, cada botão chama diretamente a função já validada
+correspondente.
+
+- Aba **"Modelo e Análise"** — tabelas editáveis de nós, materiais,
+  seções, elementos, apoios e cargas nodais (com opção de incluir peso
+  próprio automaticamente), botão "Rodar Análise" que chama
+  `run_analysis` e mostra deslocamentos/reações/esforços internos;
+- Aba **"Verificações NBR 8800"** — um formulário por verificação já
+  implementada (tração, compressão, cisalhamento, flexão completa
+  FLT+FLM+FLA, combinação N+M biaxial), mostrando `is_ok`/utilização;
+- Extra opcional: `pip install -e ".[gui]"` (PySide6 não é dependência
+  obrigatória do núcleo);
+- Empacotável como executável desktop via PyInstaller (`pip install -e
+  ".[build]"`, ver `docs/build/EMPACOTAMENTO.md`) — **⚠️ o `.exe`
+  Windows só pode ser gerado rodando o PyInstaller em uma máquina
+  Windows** (sem cross-compilation; testado nesta fase gerando um
+  binário Linux equivalente);
+- Testes em modo `offscreen` (`tests/gui/`, sem exigir display real —
+  mesmo mecanismo usado pelo CI).
+
+**Fora do escopo desta fase**: viewport 3D (PyVista/VTK), edição
+visual do modelo (arrastar nós, desenhar elementos), geração de
+relatórios a partir da GUI, undo/redo, salvar/carregar modelo em
+arquivo.
+
 ## Convenção de unidades
 
 Sistema consistente **N, mm, MPa** (MPa = N/mm²) em todo o núcleo de
@@ -166,6 +197,9 @@ grandeza) é responsabilidade do futuro **UNITS & DATA AGENT**
 ```bash
 uv venv --python 3.13 .venv
 uv pip install -e ".[dev]" --python .venv/bin/python
+
+# opcional: GUI desktop (PySide6) e empacotamento (PyInstaller)
+uv pip install -e ".[gui,build]" --python .venv/bin/python
 ```
 
 ## Exemplo de uso
@@ -204,8 +238,26 @@ print(result.element_forces[1])  # esforcos internos do elemento 1 (eixos locais
 .venv/bin/python -m pytest -v                          # suite completa
 .venv/bin/python -m pytest tests/unit -v                # unitarios
 .venv/bin/python -m pytest tests/validation -v          # validacao estrutural
+.venv/bin/python -m pytest tests/gui -v                 # GUI (offscreen, requer extra "gui")
 .venv/bin/python -m pytest --cov=openstruct --cov-report=term-missing
 ```
+
+Os testes da GUI (`tests/gui/`) rodam em modo `offscreen`
+(`QT_QPA_PLATFORM=offscreen`), sem exigir um display real — o mesmo
+mecanismo usado no CI. São pulados automaticamente
+(`pytest.importorskip`) se o extra `gui` não estiver instalado.
+
+## Executando a GUI desktop
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m openstruct.gui   # modo offscreen (sandbox/CI)
+.venv/bin/python -m openstruct.gui                              # modo normal (com display)
+# ou, apos `pip install -e ".[gui]"`:
+.venv/bin/openstruct3d-gui
+```
+
+Para gerar um executável desktop (`.exe` no Windows), ver
+`docs/build/EMPACOTAMENTO.md`.
 
 ## Estrutura do projeto
 
@@ -231,24 +283,37 @@ src/openstruct/
 │   └── linear.py                # solve_linear_system
 ├── results/                   # RESULTS (orquestracao + saida)
 │   └── analysis_result.py       # AnalysisResult, run_analysis, EquilibriumResidualError
-└── normative/                 # NORMATIVE (plugin architecture, agnostico do nucleo)
-    └── nbr8800/                  # ABNT NBR 8800:2024
-        ├── resistance_factors.py   # LoadCombinationClass, SteelResistanceFactors (Tabela 3)
-        ├── tension.py               # check_tension_member (5.2 — barras tracionadas)
-        ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
-        ├── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
-        ├── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
-        ├── flexure.py               # check_flexural_resistance_major_axis (5.4.1.3/5.4.2/Anexo D — FLT+FLM+FLA)
-        └── combined_forces.py       # check_axial_and_bending_interaction (5.5.1.2 — N+M biaxial)
+├── normative/                 # NORMATIVE (plugin architecture, agnostico do nucleo)
+│   └── nbr8800/                  # ABNT NBR 8800:2024
+│       ├── resistance_factors.py   # LoadCombinationClass, SteelResistanceFactors (Tabela 3)
+│       ├── tension.py               # check_tension_member (5.2 — barras tracionadas)
+│       ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
+│       ├── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
+│       ├── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
+│       ├── flexure.py               # check_flexural_resistance_major_axis (5.4.1.3/5.4.2/Anexo D — FLT+FLM+FLA)
+│       └── combined_forces.py       # check_axial_and_bending_interaction (5.5.1.2 — N+M biaxial)
+└── gui/                       # GUI DESKTOP (PySide6, extra opcional "gui")
+    ├── widgets.py               # EditableTable (tabela editavel generica)
+    ├── model_tab.py             # ModelTab (modelo/analise)
+    ├── checks_tab.py            # ChecksTab (verificacoes NBR 8800)
+    ├── main_window.py           # MainWindow
+    ├── app.py                   # main(), ponto de entrada
+    └── __main__.py              # `python -m openstruct.gui`
 
 tests/
 ├── unit/                    # testes unitarios por classe
-└── validation/               # comparacao contra solucoes analiticas/estatica pura/norma
+├── validation/               # comparacao contra solucoes analiticas/estatica pura/norma
+└── gui/                      # testes da GUI (offscreen, requer extra "gui")
 
 docs/
 ├── validation/               # VAL-XXXX.md — registros de validacao de engenharia
 ├── normative/                 # NBR8800-RULES.md — rastreabilidade RULE-ID de cada regra
-└── decisions/                 # ADR-XXX.md — decisoes arquiteturais
+├── decisions/                 # ADR-XXX.md — decisoes arquiteturais
+└── build/                     # EMPACOTAMENTO.md — geracao do executavel desktop
+
+packaging/
+├── openstruct3d-gui.spec     # spec do PyInstaller (executavel onefile)
+└── entrypoint.py              # ponto de entrada usado so pelo PyInstaller
 
 .claude/
 ├── agents/                   # subagentes do Claude Code para este projeto
@@ -279,4 +344,7 @@ quando as fases correspondentes forem abertas.
 Ver `PROGRAM_MASTER.md` seções 25-34 para a lista completa de marcos
 (`3D FRAME SOLVER V1`, `VALIDATED 3D FRAME SOLVER`, `DESKTOP GUI`,
 `SECOND ORDER`, `BUCKLING`, `NORMATIVE ENGINE`, `STEEL DESIGN`,
-`REPORT ENGINE`, `AI COPILOT`, `OPTIMIZATION`).
+`REPORT ENGINE`, `AI COPILOT`, `OPTIMIZATION`). `DESKTOP GUI` teve sua
+primeira fase (sem viewport 3D) implementada — viewport 3D
+(PyVista/VTK), edição visual do modelo e geração de relatórios pela
+GUI permanecem futuros.
