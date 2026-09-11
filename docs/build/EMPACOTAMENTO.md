@@ -94,6 +94,19 @@ até ser encerrado.
 (cobertos por `dist/`/`build/` no `.gitignore` da raiz) — são
 artefatos de build, gerados sob demanda, não código-fonte.
 
+### Tamanho do executável (após o viewport 3D, PyVista/VTK)
+
+O binário Linux gerado neste sandbox cresceu de ~86 MB (só
+PySide6+numpy+scipy) para **~267 MB** depois de adicionar
+PyVista/`pyvistaqt`/VTK — VTK é uma biblioteca nativa grande, e o
+PyInstaller empacota todos os seus módulos (`vtkmodules.*`) usados
+transitivamente. Build e execução (offscreen) verificados sem erro
+nesta fase; os hooks de empacotamento do VTK
+(`_pyinstaller_hooks_contrib/stdhooks/hook-vtkmodules.*.py`,
+`hook-vtkpython.py`) já vêm com `pyinstaller-hooks-contrib`
+(dependência transitiva de `pyinstaller`) — nenhum hook adicional
+precisou ser escrito ou configurado manualmente no `.spec`.
+
 ## Build automático (CI)
 
 `.github/workflows/build-gui-exe.yml` — job `build-windows`, roda em

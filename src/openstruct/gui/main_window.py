@@ -1,4 +1,5 @@
-"""Janela principal: agrega a aba de modelo/analise e a aba de verificacoes NBR 8800."""
+"""Janela principal: agrega as abas de modelo/analise, visualizacao 3D
+e verificacoes NBR 8800."""
 
 from __future__ import annotations
 
@@ -6,6 +7,7 @@ from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget
 
 from .checks_tab import ChecksTab
 from .model_tab import ModelTab
+from .viewport_3d import Viewport3D
 
 
 class MainWindow(QMainWindow):
@@ -16,7 +18,9 @@ class MainWindow(QMainWindow):
 
         tabs = QTabWidget(self)
         self.model_tab = ModelTab(self)
+        self.viewport_tab = Viewport3D(self.model_tab, self)
         self.checks_tab = ChecksTab(self)
         tabs.addTab(self.model_tab, "Modelo e Análise")
+        tabs.addTab(self.viewport_tab, "Visualização 3D")
         tabs.addTab(self.checks_tab, "Verificações NBR 8800")
         self.setCentralWidget(tabs)

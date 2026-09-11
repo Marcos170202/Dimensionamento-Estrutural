@@ -148,12 +148,12 @@ fletores/força cortante (5.5.2, inclui `Trd` de torção pura — nunca
 implementado), e ligações — ver `docs/normative/NBR8800-RULES.md` para
 a lista completa do que foi conscientemente adiado.
 
-### Fase GUI DESKTOP V1
+### Fase GUI DESKTOP V1 (+ viewport 3D)
 
-Aplicativo desktop `openstruct.gui` (PySide6), decidido explicitamente
-pelo usuário como **sem viewport 3D** nesta fase — ver
-`docs/decisions/ADR-003-gui-arquitetura.md`. Camada fina sobre
-`domain`/`results`/`normative`: nenhuma fórmula de engenharia é
+Aplicativo desktop `openstruct.gui` (PySide6) — ver
+`docs/decisions/ADR-003-gui-arquitetura.md` (arquitetura geral) e
+`docs/decisions/ADR-004-viewport-3d.md` (viewport 3D). Camada fina
+sobre `domain`/`results`/`normative`: nenhuma fórmula de engenharia é
 duplicada na GUI, cada botão chama diretamente a função já validada
 correspondente.
 
@@ -161,23 +161,34 @@ correspondente.
   seções, elementos, apoios e cargas nodais (com opção de incluir peso
   próprio automaticamente), botão "Rodar Análise" que chama
   `run_analysis` e mostra deslocamentos/reações/esforços internos;
+- Aba **"Visualização 3D"** (PyVista/VTK, via `pyvistaqt`) — desenha a
+  estrutura (nós, elementos, apoios, setas de carga nodal) a partir do
+  mesmo modelo montado na aba anterior, e sobrepõe a forma deformada da
+  última análise executada (fator de escala ajustável — deslocamentos
+  reais em mm costumam ser pequenos demais para aparecer sem
+  ampliação). Só visualização nesta fase — sem edição interativa
+  (criar/mover nó clicando no desenho), ver ADR-004;
 - Aba **"Verificações NBR 8800"** — um formulário por verificação já
   implementada (tração, compressão, cisalhamento, flexão completa
   FLT+FLM+FLA, combinação N+M biaxial), mostrando `is_ok`/utilização;
-- Extra opcional: `pip install -e ".[gui]"` (PySide6 não é dependência
-  obrigatória do núcleo);
+- Extra opcional: `pip install -e ".[gui]"` (PySide6/PyVista/VTK não
+  são dependências obrigatórias do núcleo);
 - Empacotável como executável desktop via PyInstaller (`pip install -e
   ".[build]"`, ver `docs/build/EMPACOTAMENTO.md`) — **⚠️ o `.exe`
   Windows só pode ser gerado rodando o PyInstaller em uma máquina
-  Windows** (sem cross-compilation; testado nesta fase gerando um
-  binário Linux equivalente);
+  Windows** (sem cross-compilation) — automatizado por CI, ver
+  "📥 Baixar o `.exe`" abaixo;
 - Testes em modo `offscreen` (`tests/gui/`, sem exigir display real —
-  mesmo mecanismo usado pelo CI).
+  mesmo mecanismo usado pelo CI; a renderização VTK/PyVista também
+  funciona offscreen, verificado nesta fase).
 
-**Fora do escopo desta fase**: viewport 3D (PyVista/VTK), edição
-visual do modelo (arrastar nós, desenhar elementos), geração de
-relatórios a partir da GUI, undo/redo, salvar/carregar modelo em
-arquivo.
+**Fora do escopo desta fase**: edição interativa do modelo pelo
+viewport (criar/mover nó, atribuir material/apoio/carga clicando no
+desenho — PROGRAM_MASTER.md seção 17, marcado "Futuramente" pelo
+próprio documento), curvatura real de Hermite na forma deformada
+(hoje é uma aproximação por segmentos de reta entre nós deslocados),
+visualização de momentos concentrados, geração de relatórios a partir
+da GUI, undo/redo, salvar/carregar modelo em arquivo.
 
 ## Convenção de unidades
 
@@ -304,6 +315,7 @@ src/openstruct/
 └── gui/                       # GUI DESKTOP (PySide6, extra opcional "gui")
     ├── widgets.py               # EditableTable (tabela editavel generica)
     ├── model_tab.py             # ModelTab (modelo/analise)
+    ├── viewport_3d.py           # Viewport3D (visualizacao 3D, PyVista/VTK)
     ├── checks_tab.py            # ChecksTab (verificacoes NBR 8800)
     ├── main_window.py           # MainWindow
     ├── app.py                   # main(), ponto de entrada
@@ -353,7 +365,8 @@ quando as fases correspondentes forem abertas.
 Ver `PROGRAM_MASTER.md` seções 25-34 para a lista completa de marcos
 (`3D FRAME SOLVER V1`, `VALIDATED 3D FRAME SOLVER`, `DESKTOP GUI`,
 `SECOND ORDER`, `BUCKLING`, `NORMATIVE ENGINE`, `STEEL DESIGN`,
-`REPORT ENGINE`, `AI COPILOT`, `OPTIMIZATION`). `DESKTOP GUI` teve sua
-primeira fase (sem viewport 3D) implementada — viewport 3D
-(PyVista/VTK), edição visual do modelo e geração de relatórios pela
-GUI permanecem futuros.
+`REPORT ENGINE`, `AI COPILOT`, `OPTIMIZATION`). `DESKTOP GUI` já tem a
+GUI base e o viewport 3D (visualização) implementados — a modelagem 3D
+interativa (PROGRAM_MASTER §17: criar/mover nó, atribuir
+material/apoio/carga pelo desenho) e a geração de relatórios pela GUI
+permanecem futuras.

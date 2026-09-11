@@ -148,6 +148,12 @@ class ModelTab(QWidget):
         layout.addWidget(QLabel("<b>Resultados</b>", self))
         layout.addWidget(self.results_tabs, stretch=2)
 
+        # Cache da ultima analise bem-sucedida, consumido pela aba
+        # "Visualizacao 3D" (viewport_3d.Viewport3D) para sobrepor a forma
+        # deformada sem precisar re-executar a analise nem duplicar
+        # nenhuma logica de montagem/solucao aqui.
+        self.last_result: AnalysisResult | None = None
+
     @staticmethod
     def _make_result_table(columns: list[str]) -> QTableWidget:
         table = QTableWidget(0, len(columns))
@@ -307,6 +313,7 @@ class ModelTab(QWidget):
         except Exception as exc:  # noqa: BLE001 - qualquer falha de analise vira dialogo de erro
             QMessageBox.critical(self, "Erro ao rodar a análise", str(exc))
             return
+        self.last_result = result
         self._show_results(result)
 
     def _show_results(self, result: AnalysisResult) -> None:
