@@ -35,25 +35,29 @@ Fases ja implementadas:
   permanece agnostico de norma.
 
 - GUI DESKTOP V1 (PROGRAM_MASTER secao 2, camada GUI): aplicativo
-  desktop ``openstruct.gui`` (PySide6, SEM viewport 3D nesta fase —
-  ver docs/decisions/ADR-003) com aba de montagem de modelo/execucao
-  de analise e aba de verificacoes NBR 8800, camada fina que so chama
-  as funcoes ja validadas de ``domain``/``results``/``normative``
+  desktop ``openstruct.gui`` (PySide6) com aba de montagem de
+  modelo/execucao de analise, aba de viewport 3D (PyVista/VTK — ver
+  docs/decisions/ADR-004, SEM edicao interativa nesta fase, so
+  visualizacao) e aba de verificacoes NBR 8800, camada fina que so
+  chama as funcoes ja validadas de ``domain``/``results``/``normative``
   (nenhuma formula reescrita na GUI). Extra opcional ``pip install -e
   ".[gui]"``; empacotavel como executavel desktop via PyInstaller
   (``pip install -e ".[build]"``, ver docs/build/EMPACOTAMENTO.md —
   inclui a limitacao de que o ``.exe`` Windows so pode ser gerado
-  rodando o PyInstaller em uma maquina Windows).
+  rodando o PyInstaller em uma maquina Windows, ja automatizado por
+  CI).
 
-IA, P-Delta, flambagem e o restante do dimensionamento de elementos
+IA, P-Delta, flambagem, o restante do dimensionamento de elementos
 metalicos (demais linhas da Tabela D.1, vigas de alma esbelta, secoes
-tubulares com torcao, ligacoes) e o viewport 3D permanecem fases
-futuras — ver docs/decisions/ADR-002, docs/decisions/ADR-003 e
-docs/normative/NBR8800-RULES.md para o escopo exato ja coberto.
+tubulares com torcao, ligacoes) e a modelagem 3D interativa
+(PROGRAM_MASTER secao 17 — criar/mover no, atribuir material/apoio/
+carga clicando no viewport) permanecem fases futuras — ver
+docs/decisions/ADR-002, docs/decisions/ADR-003, docs/decisions/ADR-004
+e docs/normative/NBR8800-RULES.md para o escopo exato ja coberto.
 """
 
 from .results import AnalysisResult, run_analysis
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 __all__ = ["AnalysisResult", "run_analysis"]

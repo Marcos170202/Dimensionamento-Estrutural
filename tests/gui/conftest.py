@@ -20,6 +20,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 
 pytest.importorskip("PySide6", reason="extra opcional 'gui' nao instalado")
+pytest.importorskip("pyvista", reason="extra opcional 'gui' nao instalado (viewport 3D)")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
