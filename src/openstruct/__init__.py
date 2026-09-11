@@ -21,23 +21,26 @@ Fases ja implementadas:
   de esbeltez (5.2.8.1/5.3.7.1), a forca cortante resistente de
   calculo de secoes I/H/U fletidas em relacao ao eixo perpendicular a
   alma (5.4.1.3/5.4.3.1 — ver ``shear.py`` para o restante de 5.4,
-  ainda fora do escopo) e a flambagem lateral com torcao (FLT) de
-  secoes I/H/U duplamente simetricas fletidas no eixo de maior momento
-  de inercia (5.4.1.3/Anexo D, D.2.8-a — ver ATENCAO de seguranca em
-  ``flexure.py`` sobre FLM/FLA, ainda nao implementados). Arquitetura
-  de plugin, deliberadamente FORA do namespace `openstruct` de topo
-  (ver docstring de ``openstruct.normative``) — o nucleo de analise
-  permanece agnostico de norma.
+  ainda fora do escopo) e o momento fletor resistente de calculo
+  COMPLETO (FLT+FLM+FLA, incluindo o limite de 5.4.2.2) de secoes I/H
+  com dois eixos de simetria e secoes U nao sujeitas a momento de
+  torcao, fletidas no eixo de maior momento de inercia (5.4.1.3/5.4.2/
+  Anexo D, Tabela D.1 primeira linha — ver ATENCAO de seguranca em
+  ``flexure.py`` sobre vigas de alma esbelta, Anexo E, ainda nao
+  implementado). Arquitetura de plugin, deliberadamente FORA do
+  namespace `openstruct` de topo (ver docstring de
+  ``openstruct.normative``) — o nucleo de analise permanece agnostico
+  de norma.
 
 GUI, IA, P-Delta, flambagem e o restante do dimensionamento de
-elementos metalicos (flambagem local de mesa/alma em flexao,
-combinacao de esforcos, ligacoes) permanecem fases futuras — ver
-docs/decisions/ADR-002 e docs/normative/NBR8800-RULES.md para o
+elementos metalicos (demais linhas da Tabela D.1, vigas de alma
+esbelta, combinacao de esforcos, ligacoes) permanecem fases futuras —
+ver docs/decisions/ADR-002 e docs/normative/NBR8800-RULES.md para o
 escopo normativo exato ja coberto.
 """
 
 from .results import AnalysisResult, run_analysis
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = ["AnalysisResult", "run_analysis"]
