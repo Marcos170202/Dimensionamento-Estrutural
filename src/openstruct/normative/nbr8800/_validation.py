@@ -26,3 +26,18 @@ def is_positive_finite(value: float) -> bool:
     e sim uma extensao dele.
     """
     return math.isfinite(value) and value > 0
+
+
+def is_non_negative_finite(value: float) -> bool:
+    """``True`` se ``value`` for finito (nao NaN, nao +/-inf) e >= 0.
+
+    Variante de :func:`is_positive_finite` que aceita zero — usada
+    para grandezas "solicitantes de calculo" em MAGNITUDE (ex.: `Nsd`,
+    `Msd` em ``combined_forces.py``) onde zero e um valor valido (ex.:
+    sem momento em um dos eixos), mas um valor negativo indicaria que
+    o chamador esqueceu de tomar o valor absoluto — mesmo tipo de
+    achado do CODE REVIEW AGENT registrado para ``ShearCheckResult``/
+    ``FlexureCheckResult`` (``msd``/``vsd`` sem validacao de sinal),
+    aqui evitado desde o inicio ao exigir a magnitude explicitamente.
+    """
+    return math.isfinite(value) and value >= 0
