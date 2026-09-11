@@ -34,6 +34,8 @@ from openstruct.normative.nbr8800 import (
     steel_resistance_factors,
 )
 
+from ._parsing import parse_decimal
+
 _LOAD_COMBINATION_LABELS = {
     LoadCombinationClass.NORMAL: "Normal",
     LoadCombinationClass.ESPECIAL_OU_CONSTRUCAO: "Especial ou de construção",
@@ -59,7 +61,7 @@ class _CheckResultLike(Protocol):
 
 def _parse_float(text: str, field: str) -> float:
     try:
-        return float(text.replace(",", "."))
+        return parse_decimal(text)
     except ValueError as exc:
         raise ValueError(f"Campo '{field}' deve ser um número, recebido {text!r}.") from exc
 

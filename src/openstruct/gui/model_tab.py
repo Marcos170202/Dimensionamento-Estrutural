@@ -39,6 +39,7 @@ from openstruct.domain import (
 )
 from openstruct.results import AnalysisResult
 
+from ._parsing import parse_decimal
 from .widgets import EditableTable
 
 _NODE_COLUMNS = ["ID", "X (mm)", "Y (mm)", "Z (mm)"]
@@ -62,7 +63,7 @@ class ModelInputError(ValueError):
 
 def _parse_float(text: str, *, field: str, table: str, row: int) -> float:
     try:
-        return float(text.replace(",", "."))
+        return parse_decimal(text)
     except ValueError as exc:
         raise ModelInputError(
             f"{table}, linha {row + 1}: campo '{field}' deve ser um numero, recebido {text!r}."
@@ -178,6 +179,11 @@ class ModelTab(QWidget):
             name, e_text, g_text, density_text, fy_text, fu_text, poisson_text = values
             if not name:
                 raise ModelInputError(f"Materiais, linha {row + 1}: 'Nome' não pode ser vazio.")
+            if name in materials:
+                raise ModelInputError(
+                    f"Materiais, linha {row + 1}: nome {name!r} já usado em outra linha "
+                    "— nomes de material devem ser únicos."
+                )
             materials[name] = Material(
                 name=name,
                 E=_parse_float(e_text, field="E", table="Materiais", row=row),
@@ -196,6 +202,11 @@ class ModelTab(QWidget):
             ) = values
             if not name:
                 raise ModelInputError(f"Seções, linha {row + 1}: 'Nome' não pode ser vazio.")
+            if name in sections:
+                raise ModelInputError(
+                    f"Seções, linha {row + 1}: nome {name!r} já usado em outra linha "
+                    "— nomes de seção devem ser únicos."
+                )
             sections[name] = Section(
                 name=name,
                 A=_parse_float(a_text, field="A", table="Seções", row=row),

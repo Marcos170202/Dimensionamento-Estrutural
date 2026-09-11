@@ -143,6 +143,14 @@ def test_build_model_and_load_case_material_empty_name_raises(qapp: object) -> N
         model_tab.build_model_and_load_case()
 
 
+def test_build_model_and_load_case_material_duplicate_name_raises(qapp: object) -> None:
+    model_tab = ModelTab()
+    model_tab.materials_table.add_row(["Aco", "200000", "77000", "7.85e-9", "345", "450", "0.3"])
+    model_tab.materials_table.add_row(["Aco", "199000", "76000", "7.80e-9", "250", "400", "0.3"])
+    with pytest.raises(ModelInputError, match="'Aco' já usado em outra linha"):
+        model_tab.build_model_and_load_case()
+
+
 def test_build_model_and_load_case_section_empty_name_raises(qapp: object) -> None:
     model_tab = ModelTab()
     model_tab.nodes_table.add_row(["1", "0", "0", "0"])
@@ -150,6 +158,18 @@ def test_build_model_and_load_case_section_empty_name_raises(qapp: object) -> No
         ["", "2680", "3730000", "127000", "38700", "417000", "83900", "375000", "53100", ""]
     )
     with pytest.raises(ModelInputError, match="Seções"):
+        model_tab.build_model_and_load_case()
+
+
+def test_build_model_and_load_case_section_duplicate_name_raises(qapp: object) -> None:
+    model_tab = ModelTab()
+    model_tab.sections_table.add_row(
+        ["W310x21", "2680", "3730000", "127000", "38700", "417000", "83900", "375000", "53100", ""]
+    )
+    model_tab.sections_table.add_row(
+        ["W310x21", "2000", "3000000", "100000", "30000", "400000", "80000", "370000", "50000", ""]
+    )
+    with pytest.raises(ModelInputError, match="'W310x21' já usado em outra linha"):
         model_tab.build_model_and_load_case()
 
 
