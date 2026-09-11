@@ -1,6 +1,6 @@
 """Testes unitarios de openstruct.normative.nbr8800.flexure.
 
-Ver docs/normative/NBR8800-RULES.md, RULE-IDs NBR8800-FLEX-001 a 004.
+Ver docs/normative/NBR8800-RULES.md, RULE-IDs NBR8800-FLEX-001 a 008.
 """
 
 from __future__ import annotations
@@ -11,7 +11,11 @@ import pytest
 
 from openstruct.normative.nbr8800.flexure import (
     FlexureCheckResult,
+    check_flexural_resistance_major_axis,
     check_lateral_torsional_buckling,
+    flange_local_buckling_coefficient_welded,
+    flange_local_buckling_moment_rolled,
+    flange_local_buckling_moment_welded,
     flexural_resistance,
     lateral_torsional_buckling_moment,
     lateral_torsional_buckling_slenderness_limit,
@@ -671,6 +675,642 @@ def test_check_lateral_torsional_buckling_rejects_invalid_unbraced_length(value:
             radius_of_gyration_minor_axis=_RY,
             unbraced_length=value,
             cb=1.0,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+# -- flange_local_buckling_coefficient_welded (kc) --------------------------------
+
+
+def test_flange_local_buckling_coefficient_welded_matches_formula() -> None:
+    h, tw = 350.0, 8.0
+    expected = 4.0 / math.sqrt(h / tw)
+    assert flange_local_buckling_coefficient_welded(h, tw) == pytest.approx(expected)
+
+
+def test_flange_local_buckling_coefficient_welded_clips_to_upper_bound() -> None:
+    # h/tw pequeno -> kc "cru" > 0,76 -> clipado em 0,76.
+    h, tw = 20.0, 8.0
+    raw = 4.0 / math.sqrt(h / tw)
+    assert raw > 0.76
+    assert flange_local_buckling_coefficient_welded(h, tw) == pytest.approx(0.76)
+
+
+def test_flange_local_buckling_coefficient_welded_clips_to_lower_bound() -> None:
+    # h/tw grande -> kc "cru" < 0,35 -> clipado em 0,35.
+    h, tw = 3000.0, 8.0
+    raw = 4.0 / math.sqrt(h / tw)
+    assert raw < 0.35
+    assert flange_local_buckling_coefficient_welded(h, tw) == pytest.approx(0.35)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_coefficient_welded_rejects_invalid_web_clear_height(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_coefficient_welded(value, 8.0)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_coefficient_welded_rejects_invalid_web_thickness(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_coefficient_welded(350.0, value)
+
+
+# -- flange_local_buckling_moment_rolled/welded (Mcr, FLM) ------------------------
+
+
+def test_flange_local_buckling_moment_rolled_matches_formula() -> None:
+    e, wc, lam = 200_000.0, 900e3, 6.25
+    expected = 0.69 * e / lam**2 * wc
+    assert flange_local_buckling_moment_rolled(e, wc, lam) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_rolled_rejects_invalid_elastic_modulus(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_rolled(value, 900e3, 6.25)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_rolled_rejects_invalid_modulus(value: float) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_rolled(200_000.0, value, 6.25)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_rolled_rejects_invalid_slenderness(value: float) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_rolled(200_000.0, 900e3, value)
+
+
+def test_flange_local_buckling_moment_welded_matches_formula() -> None:
+    e, kc, wc, lam = 200_000.0, 0.6, 900e3, 6.25
+    expected = 0.90 * e * kc / lam**2 * wc
+    assert flange_local_buckling_moment_welded(e, kc, wc, lam) == pytest.approx(expected)
+
+
+def test_flange_local_buckling_moment_welded_scales_linearly_with_kc() -> None:
+    e, wc, lam = 200_000.0, 900e3, 6.25
+    low = flange_local_buckling_moment_welded(e, 0.35, wc, lam)
+    high = flange_local_buckling_moment_welded(e, 0.70, wc, lam)
+    assert high == pytest.approx(2.0 * low)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_welded_rejects_invalid_elastic_modulus(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_welded(value, 0.6, 900e3, 6.25)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_welded_rejects_invalid_kc(value: float) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_welded(200_000.0, value, 900e3, 6.25)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_welded_rejects_invalid_modulus(value: float) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_welded(200_000.0, 0.6, value, 6.25)
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_flange_local_buckling_moment_welded_rejects_invalid_slenderness(value: float) -> None:
+    with pytest.raises(ValueError):
+        flange_local_buckling_moment_welded(200_000.0, 0.6, 900e3, value)
+
+
+# -- check_flexural_resistance_major_axis (Mrd = min(FLT, FLM, FLA) + cap) -------
+
+_BF = 200.0
+_TF2 = 16.0
+_H = 350.0
+_TW = 8.0
+
+
+def test_check_flexural_resistance_major_axis_matches_flt_when_flt_governs() -> None:
+    # Mesa/alma espessas -> FLT (o mais restritivo por comprimento
+    # destravado curto) deve governar, batendo com check_lateral_torsional_buckling.
+    kwargs = dict(
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        cb=1.0,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    result = check_flexural_resistance_major_axis(
+        msd=1.0,
+        unbraced_length=1500.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        web_clear_height=_H,
+        web_thickness=_TW,
+        rolled=True,
+        **kwargs,
+    )
+    flt_only = check_lateral_torsional_buckling(msd=1.0, unbraced_length=1500.0, **kwargs)
+    assert result.mrd == pytest.approx(flt_only.mrd)
+
+
+def test_check_flexural_resistance_major_axis_flm_governs_with_thin_flange() -> None:
+    kwargs = dict(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        web_clear_height=_H,
+        web_thickness=_TW,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    thick_flange = check_flexural_resistance_major_axis(
+        flange_width=_BF, flange_thickness=_TF2, **kwargs
+    )
+    thin_flange = check_flexural_resistance_major_axis(
+        flange_width=300.0, flange_thickness=5.0, **kwargs
+    )
+    assert thin_flange.mrd < thick_flange.mrd
+
+
+def test_check_flexural_resistance_major_axis_fla_governs_with_thin_web() -> None:
+    kwargs = dict(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    thick_web = check_flexural_resistance_major_axis(
+        web_clear_height=_H, web_thickness=_TW, **kwargs
+    )
+    thin_web = check_flexural_resistance_major_axis(
+        web_clear_height=350.0, web_thickness=3.0, **kwargs
+    )
+    assert thin_web.mrd < thick_web.mrd
+
+
+def test_check_flexural_resistance_major_axis_matches_manual_calculation_fla_inelastic() -> None:
+    web_clear_height, web_thickness = 350.0, 3.0
+    result = check_flexural_resistance_major_axis(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        web_clear_height=web_clear_height,
+        web_thickness=web_thickness,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+
+    lam_fla = web_clear_height / web_thickness
+    lam_p_fla = 3.76 * math.sqrt(_E / _FY)
+    lam_r_fla = 5.70 * math.sqrt(_E / _FY)
+    assert lam_p_fla < lam_fla <= lam_r_fla  # confirma o ramo esperado
+    mr_fla = _FY * _W
+    mpl = _FY * _Z
+    ratio = (lam_fla - lam_p_fla) / (lam_r_fla - lam_p_fla)
+    mrd_fla_ref = (mpl - (mpl - mr_fla) * ratio) / _GAMMA_A1
+
+    assert result.mrd == pytest.approx(mrd_fla_ref)
+
+
+def test_check_flexural_resistance_major_axis_welded_uses_kc_matches_manual_calculation() -> None:
+    # Mesa fina o suficiente para o FLM (soldado) governar sobre FLT/FLA
+    # e cair no ramo elastico (lambda_FLM > lambda_r_FLM).
+    flange_width, flange_thickness = 300.0, 5.0
+    result = check_flexural_resistance_major_axis(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=flange_width,
+        flange_thickness=flange_thickness,
+        web_clear_height=_H,
+        web_thickness=_TW,
+        rolled=False,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+
+    kc_ref = flange_local_buckling_coefficient_welded(_H, _TW)
+    lam_flm = (flange_width / 2.0) / flange_thickness
+    fy_minus_sigma_r = 0.70 * _FY
+    lam_r_flm = 0.95 * math.sqrt(_E * kc_ref / fy_minus_sigma_r)
+    assert lam_flm > lam_r_flm  # confirma o ramo elastico
+    mcr_flm_ref = flange_local_buckling_moment_welded(_E, kc_ref, _W, lam_flm)
+    mrd_flm_ref = mcr_flm_ref / _GAMMA_A1
+
+    # Confirma tambem que FLM (nao FLT/FLA) e o estado-limite governante
+    # neste cenario, comparando contra FLT isolado (secao/vao identicos).
+    flt_only = check_lateral_torsional_buckling(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    assert mrd_flm_ref < flt_only.mrd
+
+    assert result.mrd == pytest.approx(mrd_flm_ref)
+
+
+def test_check_flexural_resistance_major_axis_applies_5422_cap() -> None:
+    # Mpl bem maior que 1,5*W*fy (fator de forma alto) -> mesmo no ramo
+    # plastico da FLT, o limite de 5.4.2.2 deve reduzir Mrd.
+    huge_plastic_modulus = 10_000e3  # fator de forma extremo, hipotetico
+    result = check_flexural_resistance_major_axis(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=huge_plastic_modulus,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        web_clear_height=_H,
+        web_thickness=_TW,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    cap = 1.50 * _W * _FY / _GAMMA_A1
+    assert result.mrd == pytest.approx(cap)
+
+
+def test_check_flexural_resistance_major_axis_rejects_slender_web() -> None:
+    # h/tw > 5,70*sqrt(E/fy) -> viga de alma esbelta, fora do escopo do
+    # Anexo D inteiro (D.1.2) -> deve levantar ValueError.
+    with pytest.raises(ValueError, match="ALMA ESBELTA"):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=1000.0,
+            web_thickness=2.0,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+def test_check_flexural_resistance_major_axis_accepts_web_at_exact_slenderness_limit() -> None:
+    lam_r_fla = 5.70 * math.sqrt(_E / _FY)
+    web_thickness = 5.0
+    web_clear_height = lam_r_fla * web_thickness  # h/tw == lambda_r exatamente
+    result = check_flexural_resistance_major_axis(
+        msd=1.0,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        web_clear_height=web_clear_height,
+        web_thickness=web_thickness,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    assert result.is_ok is True
+
+
+def test_check_flexural_resistance_major_axis_is_ok_false_when_overloaded() -> None:
+    result = check_flexural_resistance_major_axis(
+        msd=1.0e12,
+        fy=_FY,
+        elastic_modulus=_E,
+        elastic_section_modulus=_W,
+        plastic_section_modulus=_Z,
+        minor_axis_moment_of_inertia=_IY,
+        torsion_constant=_J,
+        warping_constant=_CW,
+        radius_of_gyration_minor_axis=_RY,
+        unbraced_length=1500.0,
+        cb=1.0,
+        flange_width=_BF,
+        flange_thickness=_TF2,
+        web_clear_height=_H,
+        web_thickness=_TW,
+        rolled=True,
+        resistance_factors_gamma_a1=_GAMMA_A1,
+    )
+    assert result.is_ok is False
+
+
+def test_check_flexural_resistance_major_axis_rejects_non_finite_msd() -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=math.nan,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_fy(value: float) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=value,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_elastic_modulus(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=value,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_elastic_section_modulus(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=value,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_plastic_section_modulus(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=value,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+def test_check_flexural_resistance_major_axis_rejects_plastic_smaller_than_elastic() -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=1000e3,
+            plastic_section_modulus=900e3,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_flange_width(value: float) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=value,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_flange_thickness(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=value,
+            web_clear_height=_H,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_web_clear_height(
+    value: float,
+) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=value,
+            web_thickness=_TW,
+            rolled=True,
+            resistance_factors_gamma_a1=_GAMMA_A1,
+        )
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, math.nan, math.inf])
+def test_check_flexural_resistance_major_axis_rejects_invalid_web_thickness(value: float) -> None:
+    with pytest.raises(ValueError):
+        check_flexural_resistance_major_axis(
+            msd=1.0,
+            fy=_FY,
+            elastic_modulus=_E,
+            elastic_section_modulus=_W,
+            plastic_section_modulus=_Z,
+            minor_axis_moment_of_inertia=_IY,
+            torsion_constant=_J,
+            warping_constant=_CW,
+            radius_of_gyration_minor_axis=_RY,
+            unbraced_length=1500.0,
+            cb=1.0,
+            flange_width=_BF,
+            flange_thickness=_TF2,
+            web_clear_height=_H,
+            web_thickness=value,
+            rolled=True,
             resistance_factors_gamma_a1=_GAMMA_A1,
         )
 

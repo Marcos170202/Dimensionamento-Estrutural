@@ -16,14 +16,16 @@ limitacao RECOMENDADA (nao obrigatoria) do indice de esbeltez de
 barras tracionadas/comprimidas individuais (5.2.8.1/5.3.7.1), a forca
 cortante resistente de calculo de secoes I/H/U fletidas em relacao ao
 eixo perpendicular a alma (5.4.1.3/5.4.3.1 — ver docstring de
-``shear`` para o restante de 5.4, ainda fora do escopo), a flambagem
-lateral com torcao (FLT) de secoes I/H/U duplamente simetricas
-fletidas no eixo de maior momento de inercia (5.4.1.3/Anexo D,
-D.2.8-a — ver ATENCAO na docstring de ``flexure`` sobre FLM/FLA
-ainda nao implementados) e os coeficientes de ponderacao da
-resistencia do aco estrutural (4.9.2, Tabela 3). Ver docstrings de
-``tension``, ``compression``, ``slenderness``, ``shear``, ``flexure``
-e ``resistance_factors`` para os limites exatos do escopo.
+``shear`` para o restante de 5.4, ainda fora do escopo), o momento
+fletor resistente de calculo COMPLETO (FLT+FLM+FLA) de secoes I/H com
+dois eixos de simetria e secoes U nao sujeitas a momento de torcao,
+fletidas no eixo de maior momento de inercia (5.4.1.3/5.4.2/Anexo D,
+Tabela D.1 primeira linha — ver ATENCAO na docstring de ``flexure``
+sobre vigas de alma esbelta, Anexo E, ainda nao implementado) e os
+coeficientes de ponderacao da resistencia do aco estrutural (4.9.2,
+Tabela 3). Ver docstrings de ``tension``, ``compression``,
+``slenderness``, ``shear``, ``flexure`` e ``resistance_factors`` para
+os limites exatos do escopo.
 """
 
 from __future__ import annotations
@@ -40,7 +42,11 @@ from .compression import (
 )
 from .flexure import (
     FlexureCheckResult,
+    check_flexural_resistance_major_axis,
     check_lateral_torsional_buckling,
+    flange_local_buckling_coefficient_welded,
+    flange_local_buckling_moment_rolled,
+    flange_local_buckling_moment_welded,
     flexural_resistance,
     lateral_torsional_buckling_moment,
     lateral_torsional_buckling_slenderness_limit,
@@ -86,12 +92,16 @@ __all__ = [
     "TensionCheckResult",
     "check_compression_member",
     "check_compression_slenderness",
+    "check_flexural_resistance_major_axis",
     "check_lateral_torsional_buckling",
     "check_shear_major_axis",
     "check_tension_member",
     "check_tension_slenderness",
     "effective_area_without_local_buckling",
     "effective_shear_area_major_axis",
+    "flange_local_buckling_coefficient_welded",
+    "flange_local_buckling_moment_rolled",
+    "flange_local_buckling_moment_welded",
     "flexural_buckling_force",
     "flexural_resistance",
     "lateral_torsional_buckling_moment",
