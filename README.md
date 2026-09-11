@@ -103,7 +103,18 @@ Rastreabilidade completa de cada regra em
   da alma / flambagem inelástica / flambagem elástica por
   cisalhamento), com o coeficiente `kv` considerando enrijecedores
   transversais opcionais; validado em VAL-0010 por cálculo manual
-  independente dos três trechos.
+  independente dos três trechos;
+- `check_lateral_torsional_buckling` — flambagem lateral com torção
+  (FLT) de seções I, H com dois eixos de simetria e seções U não
+  sujeitas a momento de torção, fletidas em relação ao eixo de maior
+  momento de inércia (NBR 8800:2024, 5.4.1.3/Anexo D, D.2.8-a): curva
+  em 3 trechos (plastificação / escoamento com tensão residual /
+  flambagem elástica), com o fator de modificação `Cb` (caso geral,
+  5.4.2.3-a) e `Cw` calculável para seções I; validado em VAL-0011.
+  **⚠️ Limitação de segurança**: implementa apenas FLT — flambagem
+  local da mesa (FLM) e da alma (FLA) ainda não são verificadas, ver
+  RULE-ID `NBR8800-FLEX-004` antes de tratar o `Mrd` retornado como o
+  `Mrd` completo de uma seção real.
 
 **Fora do escopo desta fase**: cálculo do coeficiente de redução da
 área líquida em tração (`Ct`, depende de modelagem de furos/soldas/
@@ -112,13 +123,14 @@ rosqueadas, requisito de esbeltez para barras COMPOSTAS (apenas barras
 individuais estão cobertas), área efetiva reduzida por flambagem local
 em compressão, flambagem por flexo-torção em seções
 monossimétricas/assimétricas, cantoneiras simples, barras compostas,
-momento fletor resistente de cálculo (5.4.2, depende dos Anexos D/E —
-classificação da seção e flambagem lateral com torção), força cortante
-resistente para seções tubulares/caixão/T/cantoneiras duplas/I-H-U em
-torno do eixo fraco/tubulares circulares (5.4.3.2 a 5.4.3.6), e
-combinação de esforços (5.5) e ligações — ver
-`docs/normative/NBR8800-RULES.md` para a lista completa do que foi
-conscientemente adiado.
+flambagem local da mesa/alma em flexão (FLM/FLA, ver limitação acima),
+vigas de alma esbelta (Anexo E), demais linhas da Tabela D.1 do
+Anexo D (seções monossimétricas, tubulares/caixão, T, cantoneiras
+duplas, sólidas), força cortante resistente para seções tubulares/
+caixão/T/cantoneiras duplas/I-H-U em torno do eixo fraco/tubulares
+circulares (5.4.3.2 a 5.4.3.6), e combinação de esforços (5.5) e
+ligações — ver `docs/normative/NBR8800-RULES.md` para a lista completa
+do que foi conscientemente adiado.
 
 ## Convenção de unidades
 
@@ -209,7 +221,8 @@ src/openstruct/
         ├── tension.py               # check_tension_member (5.2 — barras tracionadas)
         ├── compression.py           # check_compression_member (5.3 — barras comprimidas)
         ├── slenderness.py           # esbeltez recomendada (5.2.8.1/5.3.7.1)
-        └── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
+        ├── shear.py                 # check_shear_major_axis (5.4.1.3/5.4.3.1 — cisalhamento)
+        └── flexure.py               # check_lateral_torsional_buckling (5.4.1.3/Anexo D — FLT)
 
 tests/
 ├── unit/                    # testes unitarios por classe
