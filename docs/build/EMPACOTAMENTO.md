@@ -109,17 +109,20 @@ manualmente (`workflow_dispatch`). Passos:
    de um build específico, mas expira e exige login no GitHub para
    baixar);
 3. **publica/atualiza um GitHub Release com tag fixa
-   `openstruct3d-gui-latest`** (usa `gh release delete ... || true`
-   seguido de `gh release create`, com a tag recriada em cada execução
-   via `git tag -f` + `push --force`) — esse é o mecanismo pensado
-   para "instalar e ir recebendo atualizações": a URL do Release NUNCA
+   `openstruct3d-gui-latest`** (`gh release delete` só quando o
+   Release já existe, seguido de `gh release create ... --target
+   <sha>` — a própria `gh` recria a tag no commit certo, sem precisar
+   de `git tag`/`git push` manuais) — esse é o mecanismo pensado para
+   "instalar e ir recebendo atualizações": a URL do Release NUNCA
    muda, só o arquivo por trás dela. Marcado `--prerelease` (não é uma
    versão numerada oficial do projeto, é sempre "o build mais recente
    de `main`").
 
 Requer `permissions: contents: write` no workflow (para o
-`GITHUB_TOKEN` poder criar/apagar releases e mover a tag) — já
-configurado no arquivo.
+`GITHUB_TOKEN` poder criar/apagar releases e a tag) — já configurado
+no arquivo. Um `concurrency:` de grupo único serializa execuções
+concorrentes (dois pushes próximos em `main`), evitando que builds
+paralelos se intercalem e deixem o link servindo um binário errado.
 
 **Este mecanismo NÃO publica o `.exe` Windows a partir deste sandbox
 Linux** — o download em si continua bloqueado pela política de rede
